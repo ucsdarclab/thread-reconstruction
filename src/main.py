@@ -14,6 +14,7 @@ if __name__ == "__main__":
     plt.imshow(img)
     plt.show()
     """
+    # Set up image and useful constants
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
@@ -27,14 +28,20 @@ if __name__ == "__main__":
             if i**2 + j**2 <= upsilon**2:
                 roi.append((i,j))
 
-    # Active node setup
+    # Pixel ordering setup
     curr_V_l = (258, 336)
+    par_V_l = None
     segmented_l = {curr_V_l}
-    active_l = set()
-                
-    # Get inital active nodes
+    active_l = []
     for i, j in roi:
-        node = (i+curr_V_l[0], j+curr_V_l[1])
-        if (node not in segmented_l) and img_l[node] < thresh:
-            active_l.add(node)
-    print(active_l)
+        node_l = (i+curr_V_l[0], j+curr_V_l[1])
+        if (node_l not in segmented_l) and img_l[node_l] < thresh:
+            active_l.append(node_l)
+    
+    # Order pixels and stereo match
+    while len(active_l):
+        # calculate min cost active node
+        min_cost = np.Inf
+        for pr_l, pc_l in active_l:
+            # out of range numbers
+            slope = (pr_l - curr_V_l[0]) / (pc_l - curr_V_l[1])
