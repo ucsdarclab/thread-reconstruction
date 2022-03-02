@@ -5,15 +5,15 @@ import cv2
 
 """
 Tip locations:
-    Left- x=336, y=258 (bottom rightmost pixel)
+    Left- x=337, y=259 (bottom rightmost pixel)
     Right- x=313, y=258 (bottom rightmost pixel)
 """
 if __name__ == "__main__":
-    """ #For finding image pixels
+    #""" #For finding image pixels
     img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     plt.imshow(img)
     plt.show()
-    """
+    #"""
     # Set up image and useful constants
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
@@ -21,7 +21,7 @@ if __name__ == "__main__":
     img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     thresh = 250
-    upsilon = 5
+    upsilon = 20
     roi = []
     for i in range(-upsilon, upsilon+1):
         for j in range(-upsilon, upsilon+1):
@@ -29,8 +29,8 @@ if __name__ == "__main__":
                 roi.append((i,j))
 
     # Pixel ordering setup
-    curr_V_l = (258, 336)
-    par_V_l = None
+    curr_V_l = (259, 336)
+    par_V_l = (259, 337)
     segmented_l = {curr_V_l}
     active_l = []
     for i, j in roi:
@@ -72,4 +72,12 @@ if __name__ == "__main__":
                     o_pixels.add(pixel2_l)
             
             O_num = len(o_pixels)
+            
+            # Calculate triangle area terms
+            to_active = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
+            to_prev = np.array([curr_V_l[0], curr_V_l[1]]) - np.array([par_V_l[0], par_V_l[1]])
+            angle = np.arccos(
+                np.dot(to_active, to_prev) /
+                (np.linalg.norm(to_active) * np.linalg.norm(to_prev))
+            )
         break
