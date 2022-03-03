@@ -28,16 +28,21 @@ if __name__ == "__main__":
         for j in range(-upsilon, upsilon+1):
             if i**2 + j**2 <= upsilon**2:
                 roi.append((i,j))
-
-    # Pixel ordering setup
+    
     curr_V_l = (259, 336)
     par_V_l = (259, 337)
-    segmented_l = {curr_V_l}
+    curve_set_l = {curr_V_l, par_V_l}
+    curve_l = np.array([
+        [par_V_l[1], curr_V_l[1]],
+        [par_V_l[0], curr_V_l[0]]
+    ])
+
+    # Pixel ordering setup
     active_l = []
     for i, j in roi:
         node_l = (i+curr_V_l[0], j+curr_V_l[1])
         if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
-            (node_l not in segmented_l) and (img_l[node_l] <= thresh)
+            (node_l not in curve_set_l) and (img_l[node_l] <= thresh)
             ):
             active_l.append(node_l)
     
@@ -52,9 +57,6 @@ if __name__ == "__main__":
         # calculate min cost active node
         min_cost_l = np.Inf
         min_node_l = None
-        # TODO Remove
-        cost_array = np.zeros((3, len(active_l)))
-        idx = 0
         for prow_l, pcol_l in active_l:
             # Calculate triangle area terms
             to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
@@ -107,9 +109,30 @@ if __name__ == "__main__":
             if (cost_l < min_cost_l):
                 min_cost_l = cost_l
                 min_node_l = (prow_l, pcol_l)
-            # TODO Remove
-            cost_array[:, idx] = [prow_l, pcol_l, cost_l]
-            idx += 1
-        plt.scatter(cost_array[1], cost_array[0], c=cost_array[2], cmap="hot")
-        plt.show()
-        break
+        
+        # Terminate if conditions all tripped
+        if (min_node_l is None):
+            break
+        # Add selected node to curve
+        curve_set_l.add(min_node_l)
+        curve_l = np.concatenate(
+            (
+                curve_l,
+                np.array([[min_node_l[1]], [min_node_l[0]]])
+            ),
+            axis=1
+        )
+
+        # Update active nodes and curve nodes
+        par_V_l = curr_V_l
+        curr_V_l = min_node_l
+        active_l = []
+        for i, j in roi:
+            node_l = (i+curr_V_l[0], j+curr_V_l[1])
+            if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
+                (node_l not in curve_set_l) and (img_l[node_l] <= thresh)
+                ):
+                active_l.append(node_l)
+    
+    plt.plot(curve_l[0], curve_l[1])
+    plt.show()
