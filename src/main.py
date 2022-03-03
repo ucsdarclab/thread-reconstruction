@@ -10,11 +10,11 @@ Tip locations:
     Right- x=313, y=258 (bottom rightmost pixel)
 """
 if __name__ == "__main__":
-    """ #For finding image pixels
+    #""" #For finding image pixels
     img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     plt.imshow(img)
-    plt.show()
-    """
+    # plt.show()
+    # """
     # Set up image and useful constants
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
@@ -52,6 +52,9 @@ if __name__ == "__main__":
         # calculate min cost active node
         min_cost_l = np.Inf
         min_node_l = None
+        # TODO Remove
+        cost_array = np.zeros((3, len(active_l)))
+        idx = 0
         for prow_l, pcol_l in active_l:
             # Calculate triangle area terms
             to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
@@ -101,8 +104,12 @@ if __name__ == "__main__":
                 e_2 * np.linalg.norm(to_active_l) *
                 np.exp(e_3 * np.sin(angle_l/2))
             )
-            print(prow_l, pcol_l, cost_l)
             if (cost_l < min_cost_l):
                 min_cost_l = cost_l
                 min_node_l = (prow_l, pcol_l)
+            # TODO Remove
+            cost_array[:, idx] = [prow_l, pcol_l, cost_l]
+            idx += 1
+        plt.scatter(cost_array[1], cost_array[0], c=cost_array[2], cmap="hot")
+        plt.show()
         break
