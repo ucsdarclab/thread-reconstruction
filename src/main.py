@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # Order pixels and stereo match
     e_1 = 1
     e_2 = 0.1
-    e_3 = 0.09
+    e_3 = 1.0
     mu = 1
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
@@ -106,7 +106,7 @@ if __name__ == "__main__":
             # Calculate node cost and compare to min cost
             cost_l = (
                 math.log(e_1*O_num_l + 1) + 
-                e_2 * np.linalg.norm(to_active_l) *
+                e_2 * np.linalg.norm(to_active_l) +
                 np.exp(e_3 * np.sin(angle_l/2))
             )
             if (cost_l < min_cost_l):
