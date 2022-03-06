@@ -3,7 +3,8 @@ import matplotlib.image as mpimg
 import numpy as np
 import cv2
 import math
-
+import random
+np.seterr(all="raise")
 """
 Tip locations:
     Left- x=337, y=259 (bottom rightmost pixel)
@@ -47,24 +48,26 @@ if __name__ == "__main__":
             active_l.append(node_l)
     
     # Order pixels and stereo match
-    e_1 = 3
-    e_2 = 0.3
-    e_3 = 0.05
+    e_1 = 1
+    e_2 = 0.1
+    e_3 = 0.09
     mu = 1
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
     while len(active_l):
         # calculate min cost active node
         min_cost_l = np.Inf
-        min_node_l = None
+        min_nodes_l = []
         for prow_l, pcol_l in active_l:
             # Calculate triangle area terms
             to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
             to_prev_l = np.array([curr_V_l[0], curr_V_l[1]]) - np.array([par_V_l[0], par_V_l[1]])
-            angle_l = np.arccos(
+            angle_l = np.arccos(np.clip(
                 np.dot(to_active_l, to_prev_l) /
-                (np.linalg.norm(to_active_l) * np.linalg.norm(to_prev_l))
-            )
+                (np.linalg.norm(to_active_l) * np.linalg.norm(to_prev_l)),
+                -1,
+                1
+            ))
             # Compare with terminating threshold
             if (angle_l >= tau_V):
                 continue
@@ -108,12 +111,15 @@ if __name__ == "__main__":
             )
             if (cost_l < min_cost_l):
                 min_cost_l = cost_l
-                min_node_l = (prow_l, pcol_l)
+                min_nodes_l = [(prow_l, pcol_l)]
+            elif (cost_l == min_cost_l):
+                min_nodes_l.append((prow_l, pcol_l))
         
         # Terminate if conditions all tripped
-        if (min_node_l is None):
+        if (len(min_nodes_l) == 0):
             break
         # Add selected node to curve
+        min_node_l = min_nodes_l[0]#random.randrange(0, len(min_nodes_l))]
         curve_set_l.add(min_node_l)
         curve_l = np.concatenate(
             (
@@ -134,5 +140,5 @@ if __name__ == "__main__":
                 ):
                 active_l.append(node_l)
     
-    plt.plot(curve_l[0], curve_l[1])
+    plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
     plt.show()
