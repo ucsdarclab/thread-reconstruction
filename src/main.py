@@ -22,8 +22,8 @@ if __name__ == "__main__":
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
     img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
-    thresh = 250
-    upsilon = 20
+    thresh = 210
+    upsilon = 5
     roi = []
     for i in range(-upsilon, upsilon+1):
         for j in range(-upsilon, upsilon+1):
@@ -50,7 +50,7 @@ if __name__ == "__main__":
     # Order pixels and stereo match
     e_1 = 1
     e_2 = 0.1
-    e_3 = 1.0
+    e_3 = 1.2
     mu = 1
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
@@ -119,7 +119,7 @@ if __name__ == "__main__":
         if (len(min_nodes_l) == 0):
             break
         # Add selected node to curve
-        min_node_l = min_nodes_l[0]#random.randrange(0, len(min_nodes_l))]
+        min_node_l = min_nodes_l[random.randrange(0, len(min_nodes_l))]
         curve_set_l.add(min_node_l)
         curve_l = np.concatenate(
             (
