@@ -120,6 +120,7 @@ if __name__ == "__main__":
             break
         # Add selected node to curve
         min_node_l = min_nodes_l[random.randrange(0, len(min_nodes_l))]
+        #for min_node_l in min_nodes_l:
         curve_set_l.add(min_node_l)
         curve_l = np.concatenate(
             (
@@ -131,7 +132,7 @@ if __name__ == "__main__":
 
         # Update active nodes and curve nodes
         par_V_l = curr_V_l
-        curr_V_l = min_node_l
+        curr_V_l = min_node_l #min_nodes_l[random.randrange(0, len(min_nodes_l))]
         active_l = []
         for i, j in roi:
             node_l = (i+curr_V_l[0], j+curr_V_l[1])
