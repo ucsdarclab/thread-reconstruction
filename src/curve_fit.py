@@ -14,15 +14,6 @@ if __name__ == "__main__":
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
 
-    u = torch.linspace(1e-5, 1.0-1e-5, steps=64, dtype=torch.float32)
-    u = u.unsqueeze(0)
-
-    p = 3
-    n = 20
-
-    knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
-    knot_int_u.requires_grad = True
-
     control_pts = torch.tensor([
         [259, 337],
         [299, 296],
@@ -48,64 +39,78 @@ if __name__ == "__main__":
 
     target_pts = torch.tensor([
         [259, 337],
-        ,
-        ,
+        [260, 312],
+        [279, 296],
         [299, 296],
-        ,
-        ,
+        [318, 310],
+        [331, 329],
         [341, 354],
-        ,
-        ,
+        [343, 377],
+        [341, 395],
         [336, 421],
-        ,
-        ,
+        [328, 437],
+        [315, 450],
         [297, 460],
-        ,
-        ,
+        [278, 465],
+        [258, 467],
         [235, 464],
-        ,
-        ,
+        [220, 461],
+        [202, 453],
         [186, 444],
-        ,
-        ,
+        [172, 434],
+        [159, 419],
         [146, 403],
-        ,
-        ,
+        [136, 390],
+        [128, 373],
         [119, 348],
-        ,
-        ,
+        [115, 334],
+        [107, 319],
         [100, 303],
-        ,
-        ,
+        [94, 287],
+        [90, 263],
         [88, 245],
-        ,
-        ,
+        [91, 232],
+        [98, 222],
         [108, 212],
-        ,
-        ,
+        [124, 205],
+        [137, 197],
         [149, 191],
-        ,
-        ,
+        [165, 185],
+        [176, 183],
         [188, 180],
-        ,
-        ,
+        [204, 176],
+        [219, 171],
         [231, 168],
-        ,
-        ,
+        [254, 165],
+        [275, 161],
         [292, 157],
-        ,
-        ,
+        [312, 150],
+        [333, 143],
         [354, 136],
-        ,
-        ,
+        [370, 131],
+        [384, 127],
         [394, 123],
-        ,
-        ,
+        [407, 125],
+        [403, 132],
         [391, 136],
-        ,
-        ,
+        [384, 138],
+        #,
         [372, 133]
     ], dtype=torch.float32)
+
+    u = torch.linspace(1e-5, 1.0-1e-5, steps=target_pts.size(0), dtype=torch.float32)
+    u = u.unsqueeze(0)
+
+    p = 3
+    n = 20
+
+    knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
+    knot_int_u.requires_grad = True
+
+    with torch.no_grad():
+        plt.scatter(target_pts[:,1], target_pts[:,0])
+        plt.scatter(control_pts[:,1], control_pts[:,0])
+        plt.show()
 
     weights = torch.ones(n, requires_grad=True)
     initial_curve = None
