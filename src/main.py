@@ -13,6 +13,7 @@ Tip locations:
 if __name__ == "__main__":
     #""" #For finding image pixels
     img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
+    # TODO Uncomment
     plt.imshow(img)
     # plt.show()
     # """
@@ -29,6 +30,17 @@ if __name__ == "__main__":
         for j in range(-upsilon, upsilon+1):
             if i**2 + j**2 <= upsilon**2:
                 roi.append((i,j))
+    
+    dilate_kernel = np.ones((5, 5), np.uint8)
+    erode_kernel = np.ones((2, 2), np.uint8)
+    #img_l_dilated = cv2.dilate(np.where(img_l <= thresh, 1, 0).astype("uint8"), dilate_kernel, iterations=2)
+    img_l *= cv2.erode(np.where(img_l <= thresh, 1, 0).astype("uint8"), erode_kernel, iterations=1)
+    img_l =np.where(img_l == 0, 255, img_l)
+    # cv2.imshow("img", img_l)
+    # cv2.waitKey(5000)
+    # plt.imshow(img_l)
+    # plt.show()
+    # exit(0)
     
     curr_V_l = (259, 336)
     par_V_l = (259, 337)
