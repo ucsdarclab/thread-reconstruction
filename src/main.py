@@ -23,8 +23,8 @@ if __name__ == "__main__":
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
     img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
-    thresh = 210
-    upsilon = 5
+    thresh = 205
+    upsilon = 10
     roi = []
     for i in range(-upsilon, upsilon+1):
         for j in range(-upsilon, upsilon+1):
