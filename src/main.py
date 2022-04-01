@@ -10,7 +10,7 @@ Tip locations:
     Left- x=337, y=259 (bottom rightmost pixel)
     Right- x=313, y=258 (bottom rightmost pixel)
 """
-if __name__ == "__main__":
+def order_pixels():
     #""" #For finding image pixels
     img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     # TODO Uncomment
@@ -156,3 +156,6 @@ if __name__ == "__main__":
     curve_l = curve_l[:, :-25]
     plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
     plt.show()
+
+if __name__ == "__main__":
+    order_pixels()
