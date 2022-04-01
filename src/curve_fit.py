@@ -38,7 +38,7 @@ if __name__ == "__main__":
     #     [372, 133]
     # ], dtype=torch.float32, requires_grad=True)
 
-    # target_pts = torch.tensor([
+    # target = torch.tensor([
     #     [259, 337],
     #     [260, 312],
     #     [279, 296],
@@ -98,18 +98,18 @@ if __name__ == "__main__":
     #     #,
     #     [372, 133]
     # ], dtype=torch.float32)
-    target_pts = torch.tensor(order_pixels(), dtype=torch.float32)
-    target_pts = torch.stack((target_pts[1], target_pts[0]))
+    target = torch.tensor(order_pixels(), dtype=torch.float32)
+    target = torch.stack((target[1], target[0]))
     
-    u = torch.linspace(1e-5, 1.0-1e-5, steps=target_pts.size(0), dtype=torch.float32)
+    u = torch.linspace(1e-5, 1.0-1e-5, steps=target.size(1), dtype=torch.float32)
     u = u.unsqueeze(0)
 
     p = 3
     n = 20
     control_pts = torch.stack(
         (
-            torch.tensor([target_pts[0, i] for i in range(0, target_pts.size(1), target_pts.size(1) // n)]),
-            torch.tensor([target_pts[1, i] for i in range(0, target_pts.size(1), target_pts.size(1) // n)])
+            torch.tensor([target[0, i] for i in range(0, target.size(1), target.size(1) // n)]),
+            torch.tensor([target[1, i] for i in range(0, target.size(1), target.size(1) // n)])
         )
     )[:, :-1]
     for_test = control_pts.numpy()
@@ -120,11 +120,12 @@ if __name__ == "__main__":
     knot_int_u.requires_grad = True
 
     with torch.no_grad():
-        plt.scatter(target_pts[1], target_pts[0])
-        plt.scatter(control_pts[1], control_pts[0])
-        plt.show()
+        init_control_pts = control_pts.clone()
+        # plt.scatter(target[1], target[0])
+        # plt.scatter(control_pts[1], control_pts[0])
+        # plt.show()
 
-    weights = torch.ones(n, requires_grad=True)
+    weights = torch.ones((1,n), requires_grad=True)
     initial_curve = None
     final_curve = None
     
@@ -162,8 +163,7 @@ if __name__ == "__main__":
 
             Nu_uv = BasisFunc.apply(u, U, uspan_uv, p).squeeze()
 
-            ctrl_pts = torch.cat((control_pts, weights), dim=-1)
-
+            ctrl_pts = torch.cat((control_pts, weights), dim=0).permute(1, 0)
 
             pts = torch.stack([ctrl_pts[uspan_uv[0,:] - p + l, :] for l in range(p + 1)])
 
@@ -198,4 +198,26 @@ if __name__ == "__main__":
         else:
             loss = opt_2.step(closure)
     
-    plt.show()
+    with torch.no_grad():
+        fig = plt.figure()
+        fig.clf()
+        pre = fig.add_subplot(211)
+        # pre.set_xlim(0, 11)
+        # pre.set_ylim(0, 12.5)
+        pre.set_title("Initial spline")
+        post = fig.add_subplot(212)
+        # post.set_xlim(0, 11)
+        # post.set_ylim(0, 12.5)
+        post.set_title("Final spline")
+
+        pre.plot(target[0], target[1], color="b")
+
+        pre.scatter(init_control_pts[0], init_control_pts[1], color="r")
+        pre.plot(initial_curve[0], initial_curve[1], color="g")
+
+        post.plot(target[0], target[1], color="b")
+
+        post.scatter(control_pts[0], control_pts[1], color="r")
+        post.plot(final_curve[0], final_curve[1], color="g")
+
+        plt.show()
