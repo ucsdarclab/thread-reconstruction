@@ -14,7 +14,7 @@ def order_pixels():
     #""" #For finding image pixels
     img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     # TODO Uncomment
-    plt.imshow(img)
+    # plt.imshow(img)
     # plt.show()
     # """
     # Set up image and useful constants
