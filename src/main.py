@@ -153,5 +153,6 @@ if __name__ == "__main__":
                 ):
                 active_l.append(node_l)
     
+    curve_l = curve_l[:, :-25]
     plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
     plt.show()
