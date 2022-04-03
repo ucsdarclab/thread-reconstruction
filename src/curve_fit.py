@@ -11,9 +11,10 @@ if __name__ == "__main__":
     # img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     # plt.imshow(img)
 
-    # img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
-    # img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
-    # img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
+    img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
+    img = cv2.imread(img_dir + "thread_1_left_rembg.png")
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    img = np.where(img <= 205, 0, 255)
 
     # control_pts = torch.tensor([
     #     [259, 337],
@@ -133,11 +134,11 @@ if __name__ == "__main__":
         # plt.scatter(control_pts[1], control_pts[0])
         # plt.show()
 
-    weights = torch.ones((1,n), requires_grad=True)
+    weights = torch.ones((1,n)) #TODO weights removed
     initial_curve = None
     final_curve = None
     
-    opt_1 = torch.optim.LBFGS(iter([control_pts, weights]), lr=0.3, max_iter=3) #lr = 0.1
+    opt_1 = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3) #TODO weights removed
     opt_2 = torch.optim.SGD(iter([knot_int_u]), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(opt_2, milestones=[15, 50, 200], gamma=0.01)
 
@@ -211,26 +212,28 @@ if __name__ == "__main__":
             loss = opt_2.step(closure)
     
     with torch.no_grad():
-        fig = plt.figure(figsize=(4.8, 8))
+        fig = plt.figure(figsize=(8, 4.8))
         fig.clf()
-        pre = fig.add_subplot(211)
-        pre.set_xlim(0, 600)
-        pre.set_ylim(0, 600)
+        pre = fig.add_subplot(121)
+        pre.imshow(img, cmap="gray")
+        # pre.set_xlim(0, 600)
+        # pre.set_ylim(0, 600)
         pre.set_title("Initial spline")
-        post = fig.add_subplot(212)
-        post.set_xlim(0, 600)
-        post.set_ylim(0, 600)
+        post = fig.add_subplot(122)
+        post.imshow(img, cmap="gray")
+        # post.set_xlim(0, 600)
+        # post.set_ylim(0, 600)
         post.set_title("Final spline")
 
-        pre.plot(target[0], target[1], color="b")
+        # pre.plot(target[1], target[0], color="b")
 
-        pre.scatter(init_control_pts[0], init_control_pts[1], color="r")
-        pre.plot(initial_curve[0], initial_curve[1], color="g")
+        pre.scatter(init_control_pts[1], init_control_pts[0], color="r", s=2)
+        pre.plot(initial_curve[1], initial_curve[0], color="g")
 
-        post.plot(target[0], target[1], color="b")
+        # post.plot(target[1], target[0], color="b")
 
-        post.scatter(control_pts[0], control_pts[1], color="r")
-        post.plot(final_curve[0], final_curve[1], color="g")
+        post.scatter(control_pts[1], control_pts[0], color="r", s=2)
+        post.plot(final_curve[1], final_curve[0], color="g")
 
         plt.show()
         # For debugging
