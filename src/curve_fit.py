@@ -142,8 +142,8 @@ if __name__ == "__main__":
     opt_2 = torch.optim.SGD(iter([knot_int_u]), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(opt_2, milestones=[15, 50, 200], gamma=0.01)
 
-    num_iter = 300
-    learn_partition = 100
+    num_iter = 15
+    learn_partition = 15
     pbar = tqdm(range(num_iter))
     for j in pbar:
         knot_rep_p_0 = torch.zeros(1,p+1)
@@ -172,9 +172,6 @@ if __name__ == "__main__":
             )[1]+p for s in range(U.size(0))])
 
             Nu_uv = BasisFunc.apply(u, U, uspan_uv, p).squeeze()
-
-            with torch.no_grad():
-                weights = weights.clamp(1e-8)
 
             ctrl_pts = torch.cat((control_pts, weights), dim=0).permute(1, 0)
 
@@ -210,8 +207,13 @@ if __name__ == "__main__":
             loss = opt_1.step(closure)
         else:
             loss = opt_2.step(closure)
+        
+        with torch.no_grad():
+            weights = weights.clamp(1e-8)
+            knot_int_u = knot_int_u.clamp(1e-8)
     
     with torch.no_grad():
+        print(knot_int_u)
         fig = plt.figure(figsize=(8, 4.8))
         fig.clf()
         pre = fig.add_subplot(121)
