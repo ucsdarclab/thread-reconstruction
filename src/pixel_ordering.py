@@ -16,6 +16,7 @@ def order_pixels():
     # TODO Uncomment
     # plt.imshow(img)
     # plt.show()
+    # exit(0)
     # """
     # Set up image and useful constants
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"

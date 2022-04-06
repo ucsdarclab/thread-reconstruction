@@ -7,6 +7,10 @@ from DSA_copy.nurbs_dsa.nurbs_eval import BasisFunc
 from pixel_ordering import order_pixels
 from tqdm import tqdm
 
+"""
+Much of this code is based off of this repo:
+https://github.com/idealab-isu/DSA
+"""
 if __name__ == "__main__":
     # img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
     # plt.imshow(img)
@@ -16,89 +20,6 @@ if __name__ == "__main__":
     img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     img = np.where(img <= 205, 0, 255)
 
-    # control_pts = torch.tensor([
-    #     [259, 337],
-    #     [299, 296],
-    #     [341, 354],
-    #     [336, 421],
-    #     [297, 460],
-    #     [235, 464],
-    #     [186, 444],
-    #     [146, 403],
-    #     [119, 348],
-    #     [100, 303],
-    #     [88, 245],
-    #     [108, 212],
-    #     [149, 191],
-    #     [188, 180],
-    #     [231, 168],
-    #     [292, 157],
-    #     [354, 136],
-    #     [394, 123],
-    #     [391, 136],
-    #     [372, 133]
-    # ], dtype=torch.float32, requires_grad=True)
-
-    # target = torch.tensor([
-    #     [259, 337],
-    #     [260, 312],
-    #     [279, 296],
-    #     [299, 296],
-    #     [318, 310],
-    #     [331, 329],
-    #     [341, 354],
-    #     [343, 377],
-    #     [341, 395],
-    #     [336, 421],
-    #     [328, 437],
-    #     [315, 450],
-    #     [297, 460],
-    #     [278, 465],
-    #     [258, 467],
-    #     [235, 464],
-    #     [220, 461],
-    #     [202, 453],
-    #     [186, 444],
-    #     [172, 434],
-    #     [159, 419],
-    #     [146, 403],
-    #     [136, 390],
-    #     [128, 373],
-    #     [119, 348],
-    #     [115, 334],
-    #     [107, 319],
-    #     [100, 303],
-    #     [94, 287],
-    #     [90, 263],
-    #     [88, 245],
-    #     [91, 232],
-    #     [98, 222],
-    #     [108, 212],
-    #     [124, 205],
-    #     [137, 197],
-    #     [149, 191],
-    #     [165, 185],
-    #     [176, 183],
-    #     [188, 180],
-    #     [204, 176],
-    #     [219, 171],
-    #     [231, 168],
-    #     [254, 165],
-    #     [275, 161],
-    #     [292, 157],
-    #     [312, 150],
-    #     [333, 143],
-    #     [354, 136],
-    #     [370, 131],
-    #     [384, 127],
-    #     [394, 123],
-    #     [407, 125],
-    #     [403, 132],
-    #     [391, 136],
-    #     [384, 138],
-    #     #,
-    #     [372, 133]
-    # ], dtype=torch.float32)
     # Get pixel ordering for ground truth
     ordered_pixels = torch.tensor(order_pixels(), dtype=torch.float32)
     eval_num = 150
@@ -239,6 +160,6 @@ if __name__ == "__main__":
 
         plt.show()
         # For debugging
-        test_tar = target.numpy()
-        test_ctrl = control_pts.numpy()
-        sdFASDFASDF = 1
+        # test_tar = target.numpy()
+        # test_ctrl = control_pts.numpy()
+        # sdFASDFASDF = 1
