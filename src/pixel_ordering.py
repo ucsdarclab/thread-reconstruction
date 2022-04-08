@@ -261,12 +261,12 @@ def order_pixels():
     
     curve_l = curve_l[:, :-25]
     curve_r = curve_r[:, :-4]
-    plt.imshow(img_l_init, cmap="gray")
-    plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
-    plt.show()
-    plt.imshow(img_r_init, cmap="gray")
-    plt.scatter(curve_r[0], curve_r[1], c=np.linspace(0, curve_r.shape[1]-1, curve_r.shape[1]), cmap="hot")
-    plt.show()
+    # plt.imshow(img_l_init, cmap="gray")
+    # plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
+    # plt.show()
+    # plt.imshow(img_r_init, cmap="gray")
+    # plt.scatter(curve_r[0], curve_r[1], c=np.linspace(0, curve_r.shape[1]-1, curve_r.shape[1]), cmap="hot")
+    # plt.show()
 
     return curve_l, curve_r
 

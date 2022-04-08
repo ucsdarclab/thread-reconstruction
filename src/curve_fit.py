@@ -21,7 +21,8 @@ if __name__ == "__main__":
     img = np.where(img <= 205, 0, 255)
 
     # Get pixel ordering for ground truth
-    ordered_pixels = torch.tensor(order_pixels(), dtype=torch.float32)
+    ordered_pixels, _ = order_pixels()
+    ordered_pixels = torch.tensor(ordered_pixels, dtype=torch.float32)
     eval_num = 150
     target = torch.stack(
         (
@@ -36,12 +37,14 @@ if __name__ == "__main__":
 
     p = 3
     n = 30
+    indicies = [(i * target.size(1)) // n for i in range(n)]
     control_pts = torch.stack(
         (
-            torch.tensor([target[0, i] for i in range(0, target.size(1), target.size(1) // n)]),
-            torch.tensor([target[1, i] for i in range(0, target.size(1), target.size(1) // n)])
+            torch.tensor([target[0, i] for i in indicies]),
+            torch.tensor([target[1, i] for i in indicies])
         )
     )
+    assert control_pts.size(1) == n
     n = control_pts.size(1)
     # control_pts = control_pts.type(torch.float32)
     control_pts.requires_grad = True
@@ -55,7 +58,7 @@ if __name__ == "__main__":
         # plt.scatter(control_pts[1], control_pts[0])
         # plt.show()
 
-    weights = torch.ones((1,n)) #TODO weights removed
+    weights = torch.ones((1,n), requires_grad=True) #TODO weights removed
     initial_curve = None
     final_curve = None
     
@@ -63,8 +66,8 @@ if __name__ == "__main__":
     opt_2 = torch.optim.SGD(iter([knot_int_u]), lr=1e-3)
     scheduler = torch.optim.lr_scheduler.MultiStepLR(opt_2, milestones=[15, 50, 200], gamma=0.01)
 
-    num_iter = 15
-    learn_partition = 15
+    num_iter = 30
+    learn_partition = num_iter
     pbar = tqdm(range(num_iter))
     for j in pbar:
         knot_rep_p_0 = torch.zeros(1,p+1)
@@ -134,7 +137,6 @@ if __name__ == "__main__":
             knot_int_u = knot_int_u.clamp(1e-8)
     
     with torch.no_grad():
-        print(knot_int_u)
         fig = plt.figure(figsize=(8, 4.8))
         fig.clf()
         pre = fig.add_subplot(121)
