@@ -4,6 +4,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
+from pixel_ordering import order_pixels
+
+OPENCV_MATCHING = False
 
 def stereo_match():
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
@@ -35,38 +38,53 @@ def stereo_match():
     # plt.imshow(img2, cmap="gray")
     # plt.show()
 
-    sgbm_win_size = 3
-    sgbm = cv2.StereoSGBM.create(
-        numDisparities=((img_size[0]//8) + 15) & -16,
-        blockSize=5,
-        # P1=8*9,
-        # P2=32*9,
-        # disp12MaxDiff=1,
-        # preFilterCap=63,
-        # uniquenessRatio=10,
-        # speckleWindowSize=100,
-        speckleRange=10
-    )
-    disp = sgbm.compute(img1, img2)
-    # max_disp = max(abs(np.min(disp)), abs(np.max(disp)))
-    # disp = cv2.normalize(disp, disp, alpha=255,
-    #                           beta=0, norm_type=cv2.NORM_MINMAX)
-    disp = np.float32(disp) / 16.0
-    # plt.imshow(disp, cmap="gray")
-    # plt.show()
-    img_3D = cv2.reprojectImageTo3D(disp, Q)
-    # img_3D = np.where(np.abs(img_3D) == np.inf, 0, img_3D)
-    img_3D = np.clip(img_3D, -30, 30)
-    img_3D -= img_3D.min()
-    
-    # img_3D = cv2.normalize(img_3D, img_3D, alpha=255,
-    #                             beta=0, norm_type=cv2.NORM_MINMAX)
-    img_3D *= 255 / np.abs(img_3D).max()
-    plt.imshow(np.uint8(img_3D))
-    # img_3D = img_3D.reshape((1, 480*640, 3)).squeeze(0)
-    # ax = plt.axes(projection='3d')
-    # ax.scatter(img_3D[..., 0], img_3D[..., 1], img_3D[..., 2])
-    plt.show()
+    if OPENCV_MATCHING:
+        sgbm_win_size = 3
+        sgbm = cv2.StereoSGBM.create(
+            numDisparities=((img_size[0]//8) + 15) & -16,
+            blockSize=5,
+            # P1=8*9,
+            # P2=32*9,
+            # disp12MaxDiff=1,
+            # preFilterCap=63,
+            # uniquenessRatio=10,
+            # speckleWindowSize=100,
+            speckleRange=10
+        )
+        disp = sgbm.compute(img1, img2)
+        # max_disp = max(abs(np.min(disp)), abs(np.max(disp)))
+        # disp = cv2.normalize(disp, disp, alpha=255,
+        #                           beta=0, norm_type=cv2.NORM_MINMAX)
+        disp = np.float32(disp) / 16.0
+        # plt.imshow(disp, cmap="gray")
+        # plt.show()
+        img_3D = cv2.reprojectImageTo3D(disp, Q)
+        ordering, _ = order_pixels()
+        ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
+            for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
+        ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
+            for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+        # plt.imshow(img1)
+        # plt.scatter(ordering_0, ordering_1)
+        # plt.show()
+        # print(img_3D.shape)
+        # exit(0)
+
+        img_3D = np.clip(img_3D, -1000, 1000)
+        # img_3D -= img_3D.min()
+        
+        # img_3D *= 255 / np.abs(img_3D).max()
+        # plt.imshow(np.uint8(img_3D))
+        # img_3D = img_3D.reshape((-1, 3))
+        ax = plt.axes(projection='3d')
+        ax.scatter(
+            img_3D[ordering_1, ordering_0, 0],
+            img_3D[ordering_1, ordering_0, 1],
+            img_3D[ordering_1, ordering_0, 2]
+        )
+        plt.show()
+    else:
+        pass
     
 
 
