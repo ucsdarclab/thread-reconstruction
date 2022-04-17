@@ -11,9 +11,9 @@ OPENCV_MATCHING = False
 def stereo_match():
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img1 = cv2.imread(img_dir + "thread_1_left.jpg")
-    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(img_dir + "thread_1_right.jpg")
-    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
     # Read in camera calibration values
     cv_file = cv2.FileStorage(img_dir + "camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
@@ -84,7 +84,51 @@ def stereo_match():
         )
         plt.show()
     else:
-        pass
+        # get orderings, convert to 480 X 640 and y, x
+        ord1, ord2 = order_pixels()
+        thresh = 20
+        # numerator for disparity calculation
+        num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2)
+        ord1 = np.stack([
+            np.int64([ord1[1, i] * 480/433# + off 
+                for i in range(ord1.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
+            np.int64([ord1[0, i] * 640/577# + off 
+                for i in range(ord1.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
+        ]).transpose()
+        ord2 = np.stack([
+            np.int64([ord2[1, i] * 480/433# + off 
+                for i in range(ord2.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
+            np.int64([ord2[0, i] * 640/577# + off 
+                for i in range(ord2.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
+        ]).transpose()
+        ord_3D = np.stack((ord1[:, 0], ord1[:, 1], np.zeros(ord1.shape[0])))
+
+        ord2mat = np.zeros((480, 640))
+        # get better pix2 lookup. TODO Optimize
+        for pix2 in ord2:
+            ord2mat[pix2[0], pix2[1]] = img2[pix2[0], pix2[1]]#np.mean(img2[pix2[0], pix2[1], :])
+        for i, pix1 in enumerate(ord1):
+            pix1 = (pix1[0], pix1[1])
+            max_disp = 40
+            difference = np.array([abs(img1[pix1] - ord2mat[pix1[0], pix1[1] - off]) for off in range(0, max_disp)])
+            # if (i %50 == 0):
+            #     print(difference)
+            if np.min(difference) > thresh:
+                continue
+            disp = np.argmin(difference)
+            if disp == 0:
+                continue
+            ord_3D[2, i] = num / disp
+
+        ax = plt.axes(projection='3d')
+        ax.scatter(
+            ord_3D[0],
+            ord_3D[1],
+            ord_3D[2]
+        )
+        plt.show()
+            
+
     
 
 
