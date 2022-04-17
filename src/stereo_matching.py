@@ -9,11 +9,17 @@ from pixel_ordering import order_pixels
 OPENCV_MATCHING = False
 
 def stereo_match():
+    # Get normal and segmented images
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img1 = cv2.imread(img_dir + "thread_1_left.jpg")
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(img_dir + "thread_1_right.jpg")
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+    img1seg = cv2.imread(img_dir + "thread_1_left_rembg.png")
+    img1seg = cv2.cvtColor(img1seg, cv2.COLOR_BGR2GRAY)
+    img2seg = cv2.imread(img_dir + "thread_1_right_rembg.png")
+    img2seg = cv2.cvtColor(img2seg, cv2.COLOR_BGR2GRAY)
 
     # Read in camera calibration values
     cv_file = cv2.FileStorage(img_dir + "camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
@@ -88,43 +94,55 @@ def stereo_match():
         ord1, ord2 = order_pixels()
         thresh = 20
         # numerator for disparity calculation
-        num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2)
-        ord1 = np.stack([
-            np.int64([ord1[1, i] * 480/433# + off 
-                for i in range(ord1.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
-            np.int64([ord1[0, i] * 640/577# + off 
-                for i in range(ord1.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
-        ]).transpose()
-        ord2 = np.stack([
-            np.int64([ord2[1, i] * 480/433 + off 
-                for i in range(ord2.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]]),
-            np.int64([ord2[0, i] * 640/577 + off 
-                for i in range(ord2.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
-        ]).transpose()
-        ord_3D = np.stack((ord1[:, 0], ord1[:, 1], np.ones(ord1.shape[0]) * 500))
+        num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
+        # ord1 = np.stack([
+        #     np.int64([ord1[1, i] * 480/433# + off 
+        #         for i in range(ord1.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
+        #     np.int64([ord1[0, i] * 640/577# + off 
+        #         for i in range(ord1.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
+        # ]).transpose()
+        # ord2 = np.stack([
+        #     np.int64([ord2[1, i] * 480/433 + off 
+        #         for i in range(ord2.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]]),
+        #     np.int64([ord2[0, i] * 640/577 + off 
+        #         for i in range(ord2.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+        # ]).transpose()
+        ord_3D = [] #np.stack((ord1[:, 0], ord1[:, 1], np.ones(ord1.shape[0]) * 500))
 
-        ord2mat = np.zeros((480, 640))
+        ord2mat = np.zeros((433, 577))
         # get better pix2 lookup. TODO Optimize
-        for pix2 in ord2:
-            ord2mat[pix2[0], pix2[1]] = img2[pix2[0], pix2[1]]#np.mean(img2[pix2[0], pix2[1], :])
-        for i, pix1 in enumerate(ord1):
-            pix1 = (pix1[0], pix1[1])
+        for i in range(ord2.shape[1]):
+            pix2 = (ord2[1, i], ord2[0, i])
+            ord2mat[pix2] = img2seg[pix2]#np.mean(img2[pix2[0], pix2[1], :])
+        kernel = np.ones((3, 3))
+        ord2mat = cv2.dilate(ord2mat, kernel, iterations=1)
+
+        for i in range(ord1.shape[1]):
+            pix1 = (ord1[1, i], ord1[0, i])
+            min_disp = 0#15
             max_disp = 40
-            difference = np.array([abs(img1[pix1] - ord2mat[pix1[0], pix1[1] - off]) for off in range(0, max_disp)])
+            difference = np.array([abs(img1seg[pix1] - ord2mat[pix1[0], pix1[1] - off]) for off in range(min_disp, max_disp)])
             # if (i %50 == 0):
             #     print(difference)
             if np.min(difference) > thresh:
                 continue
-            disp = np.argmin(difference)
+            disp = np.argmin(difference) + min_disp
             if disp == 0:
                 continue
-            ord_3D[2, i] = num / disp
+            ord_3D.append([pix1[0], pix1[1], num / disp])
 
+        ord_3D = np.array(ord_3D)
+        # ordMed = np.array([
+        #     [ord_3D[i, 0], ord_3D[i, 1], np.median(ord_3D[i-5:i+6, 2])] for i in range(5, ord_3D.shape[0] - 5)
+        # ])
+        # ord_3D = ordMed
+        # plt.plot(ord_3D[:, 2])
         ax = plt.axes(projection='3d')
+        ax.view_init(0, 0)
         ax.scatter(
-            ord_3D[0],
-            ord_3D[1],
-            ord_3D[2]
+            ord_3D[:, 0],
+            ord_3D[:, 1],
+            ord_3D[:, 2]
         )
         ax.set_zlim(-5, 400)
         plt.show()
