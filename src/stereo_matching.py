@@ -96,12 +96,12 @@ def stereo_match():
                 for i in range(ord1.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
         ]).transpose()
         ord2 = np.stack([
-            np.int64([ord2[1, i] * 480/433# + off 
-                for i in range(ord2.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
-            np.int64([ord2[0, i] * 640/577# + off 
-                for i in range(ord2.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
+            np.int64([ord2[1, i] * 480/433 + off 
+                for i in range(ord2.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]]),
+            np.int64([ord2[0, i] * 640/577 + off 
+                for i in range(ord2.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
         ]).transpose()
-        ord_3D = np.stack((ord1[:, 0], ord1[:, 1], np.zeros(ord1.shape[0])))
+        ord_3D = np.stack((ord1[:, 0], ord1[:, 1], np.ones(ord1.shape[0]) * 500))
 
         ord2mat = np.zeros((480, 640))
         # get better pix2 lookup. TODO Optimize
@@ -126,6 +126,7 @@ def stereo_match():
             ord_3D[1],
             ord_3D[2]
         )
+        ax.set_zlim(-5, 400)
         plt.show()
             
 
