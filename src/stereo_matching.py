@@ -90,24 +90,14 @@ def stereo_match():
         )
         plt.show()
     else:
-        # get orderings, convert to 480 X 640 and y, x
+        # get orderings
         ord1, ord2 = order_pixels()
         thresh = 20
+        min_disp = 0#15
+        max_disp = 40
         # numerator for disparity calculation
         num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
-        # ord1 = np.stack([
-        #     np.int64([ord1[1, i] * 480/433# + off 
-        #         for i in range(ord1.shape[1])]),# for off in [-1,0,1,-1,0,1,-1,0,1]]),
-        #     np.int64([ord1[0, i] * 640/577# + off 
-        #         for i in range(ord1.shape[1])])# for off in [-1,-1,-1,0,0,0,1,1,1]])
-        # ]).transpose()
-        # ord2 = np.stack([
-        #     np.int64([ord2[1, i] * 480/433 + off 
-        #         for i in range(ord2.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]]),
-        #     np.int64([ord2[0, i] * 640/577 + off 
-        #         for i in range(ord2.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
-        # ]).transpose()
-        ord_3D = [] #np.stack((ord1[:, 0], ord1[:, 1], np.ones(ord1.shape[0]) * 500))
+        ord_3D = []
 
         ord2mat = np.zeros((433, 577))
         # get better pix2 lookup. TODO Optimize
@@ -119,11 +109,7 @@ def stereo_match():
 
         for i in range(ord1.shape[1]):
             pix1 = (ord1[1, i], ord1[0, i])
-            min_disp = 0#15
-            max_disp = 40
             difference = np.array([abs(img1seg[pix1] - ord2mat[pix1[0], pix1[1] - off]) for off in range(min_disp, max_disp)])
-            # if (i %50 == 0):
-            #     print(difference)
             if np.min(difference) > thresh:
                 continue
             disp = np.argmin(difference) + min_disp
