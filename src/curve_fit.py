@@ -7,30 +7,46 @@ from DSA_copy.nurbs_dsa.nurbs_eval import BasisFunc
 from pixel_ordering import order_pixels
 from tqdm import tqdm
 
+TESTING = True
 """
 Much of this code is based off of this repo:
 https://github.com/idealab-isu/DSA
 """
 if __name__ == "__main__":
-    # img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_left_rembg.png")
-    # plt.imshow(img)
-
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
     img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
 
-    # Get pixel ordering for ground truth
     ordered_pixels_l, ordered_pixels_r = order_pixels()
+
+    # initialize shared constants between images
     eval_num = 150
 
-    for ordered_pixels, img in zip([ordered_pixels_l, ordered_pixels_r], [img_l, img_r]):
-        ordered_pixels = torch.tensor(ordered_pixels, dtype=torch.float32)
-        # ordered_pixels_r = torch.tensor(ordered_pixels_r, dtype=torch.float32)
-        indicies = [(i * ordered_pixels.size(1)) // eval_num for i in range(eval_num)]
-        # indicies_r = [(i * ordered_pixels_r.size(1)) // eval_num for i in range(eval_num)]
+    u = torch.linspace(1e-5, 1.0-1e-5, steps=eval_num, dtype=torch.float32)
+    u = u.unsqueeze(0)
+    p = 3
+    n = 30
+    knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
+    knot_rep_p_0 = torch.zeros(1,p+1)
+    knot_rep_p_1 = torch.zeros(1,p)
+    knot_u = torch.cat((knot_rep_p_0,knot_int_u,knot_rep_p_1), -1)
+    weights = torch.ones((1,n))
+    
+    init_control_pts = [None, None]
+    initial_curve = [None, None]
+    final_curve = [None, None]
 
+    num_iter = 30
+    learn_partition = num_iter
+
+    # fit curves to both left and right orderings
+    for which_curve, (ordered_pixels, img) in enumerate(zip([ordered_pixels_l, ordered_pixels_r], [img_l, img_r])):
+        ordered_pixels = torch.tensor(ordered_pixels, dtype=torch.float32)
+        indicies = [(i * ordered_pixels.size(1)) // eval_num for i in range(eval_num)]
+
+        # Get pixel ordering for ground truth
         target = torch.stack(
             (
                 torch.tensor([ordered_pixels[1, i] for i in indicies]),
@@ -38,12 +54,7 @@ if __name__ == "__main__":
             )
         )
         
-        # Initialize spline params
-        u = torch.linspace(1e-5, 1.0-1e-5, steps=target.size(1), dtype=torch.float32)
-        u = u.unsqueeze(0)
-
-        p = 3
-        n = 30
+        # initialize control points from ground truth
         indicies = [(i * target.size(1)) // n for i in range(n)]
         control_pts = torch.stack(
             (
@@ -51,43 +62,34 @@ if __name__ == "__main__":
                 torch.tensor([target[1, i] for i in indicies])
             )
         )
-        assert control_pts.size(1) == n
-        n = control_pts.size(1)
-        # control_pts = control_pts.type(torch.float32)
+        if TESTING:
+            init_control_pts[which_curve] = control_pts.clone()
         control_pts.requires_grad = True
 
-        knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
-        knot_int_u.requires_grad = True
 
-        with torch.no_grad():
-            init_control_pts = control_pts.clone()
-            # plt.scatter(target[1], target[0])
-            # plt.scatter(control_pts[1], control_pts[0])
-            # plt.show()
-
-        weights = torch.ones((1,n), requires_grad=True) #TODO weights removed
-        initial_curve = None
-        final_curve = None
+        """
+        TODO Uncomment if DSA used on knot vector
+        Make sure to update opts as necessary as well
+        """
+        # knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
+        # knot_int_u.requires_grad = True
+        # weights = torch.ones((1,n), requires_grad=True)
+        # opt_2 = torch.optim.SGD(iter([knot_int_u]), lr=1e-3)
+        # scheduler = torch.optim.lr_scheduler.MultiStepLR(opt_2, milestones=[15, 50, 200], gamma=0.01)        
         
-        opt_1 = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3) #TODO weights removed
-        opt_2 = torch.optim.SGD(iter([knot_int_u]), lr=1e-3)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(opt_2, milestones=[15, 50, 200], gamma=0.01)
-
-        num_iter = 30
-        learn_partition = num_iter
+        opt_1 = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
+        
         pbar = tqdm(range(num_iter))
         for j in pbar:
-            knot_rep_p_0 = torch.zeros(1,p+1)
-            knot_rep_p_1 = torch.zeros(1,p)
-
             def closure():
                 global initial_curve
                 global final_curve
                 global weights
+                global knot_u
                 opt_1.zero_grad()
-                opt_2.zero_grad()
+                # opt_2.zero_grad()
 
-                knot_u = torch.cat((knot_rep_p_0,knot_int_u,knot_rep_p_1), -1)
+                # knot_u = torch.cat((knot_rep_p_0,knot_int_u,knot_rep_p_1), -1)
 
                 U_c = torch.cumsum(torch.where(knot_u<0.0, knot_u*0+1e-4, knot_u), dim=1)
                 U = (U_c - U_c[:,0].unsqueeze(-1)) / (U_c[:,-1].unsqueeze(-1) - U_c[:,0].unsqueeze(-1))
@@ -124,11 +126,12 @@ if __name__ == "__main__":
                 curve = torch.stack([
                     curve_num[i,:] / curve_denom
                 for i in range(pts.size(2) - 1)])
-                with torch.no_grad():
-                    if initial_curve == None:
-                        initial_curve = curve.clone()
-                    else:
-                        final_curve = curve
+                if TESTING:
+                    with torch.no_grad():
+                        if initial_curve[which_curve] == None:
+                            initial_curve[which_curve] = curve.clone()
+                        else:
+                            final_curve[which_curve] = curve
 
                 loss = ((target-curve)**2).mean()
                 loss.backward(retain_graph=True)
@@ -137,11 +140,12 @@ if __name__ == "__main__":
             if (j % 100) < learn_partition:
                 loss = opt_1.step(closure)
             else:
-                loss = opt_2.step(closure)
+                # loss = opt_2.step(closure)
+                pass
             
-            with torch.no_grad():
-                weights = weights.clamp(1e-8)
-                knot_int_u = knot_int_u.clamp(1e-8)
+            # with torch.no_grad():
+            #     weights = weights.clamp(1e-8)
+            #     knot_int_u = knot_int_u.clamp(1e-8)
     
         with torch.no_grad():
             fig = plt.figure(figsize=(8, 4.8))
@@ -159,13 +163,13 @@ if __name__ == "__main__":
 
             # pre.plot(target[1], target[0], color="b")
 
-            pre.scatter(init_control_pts[1], init_control_pts[0], color="r", s=2)
-            pre.plot(initial_curve[1], initial_curve[0], color="g")
+            pre.scatter(init_control_pts[which_curve][1], init_control_pts[which_curve][0], color="r", s=2)
+            pre.plot(initial_curve[which_curve][1], initial_curve[which_curve][0], color="g")
 
             # post.plot(target[1], target[0], color="b")
 
             post.scatter(control_pts[1], control_pts[0], color="r", s=2)
-            post.plot(final_curve[1], final_curve[0], color="g")
+            post.plot(final_curve[which_curve][1], final_curve[which_curve][0], color="g")
 
             plt.show()
             # For debugging
