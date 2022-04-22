@@ -122,12 +122,11 @@ def fit_2D_curves():
                 curve = torch.stack([
                     curve_num[i,:] / curve_denom
                 for i in range(pts.size(2) - 1)])
-                if TESTING:
-                    with torch.no_grad():
-                        if initial_curve[which_curve] == None:
-                            initial_curve[which_curve] = curve.clone()
-                        else:
-                            final_curve[which_curve] = curve
+                with torch.no_grad():
+                    if TESTING and initial_curve[which_curve] == None:
+                        initial_curve[which_curve] = curve.clone()
+                    else:
+                        final_curve[which_curve] = curve
 
                 loss = ((target-curve)**2).mean()
                 loss.backward(retain_graph=True)
@@ -173,7 +172,7 @@ def fit_2D_curves():
                 # test_tar = target.numpy()
                 # test_ctrl = control_pts.numpy()
                 # sdFASDFASDF = 1
-    return final_curve[0], final_curve[1]
+    return final_curve[0].detach(), final_curve[1].detach()
 
 if __name__ == "__main__":
     fit_2D_curves()
