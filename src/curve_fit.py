@@ -7,12 +7,12 @@ from DSA_copy.nurbs_dsa.nurbs_eval import BasisFunc
 from pixel_ordering import order_pixels
 from tqdm import tqdm
 
-TESTING = True
+TESTING = False
 """
 Much of this code is based off of this repo:
 https://github.com/idealab-isu/DSA
 """
-if __name__ == "__main__":
+def fit_2D_curves():
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
     img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
     img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
@@ -79,13 +79,9 @@ if __name__ == "__main__":
         
         opt_1 = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
         
-        pbar = tqdm(range(num_iter))
-        for j in pbar:
+        # pbar = tqdm(range(num_iter))
+        for j in range(num_iter):#pbar:
             def closure():
-                global initial_curve
-                global final_curve
-                global weights
-                global knot_u
                 opt_1.zero_grad()
                 # opt_2.zero_grad()
 
@@ -147,32 +143,37 @@ if __name__ == "__main__":
             #     weights = weights.clamp(1e-8)
             #     knot_int_u = knot_int_u.clamp(1e-8)
     
-        with torch.no_grad():
-            fig = plt.figure(figsize=(8, 4.8))
-            fig.clf()
-            pre = fig.add_subplot(121)
-            pre.imshow(img, cmap="gray")
-            # pre.set_xlim(0, 600)
-            # pre.set_ylim(0, 600)
-            pre.set_title("Initial spline")
-            post = fig.add_subplot(122)
-            post.imshow(img, cmap="gray")
-            # post.set_xlim(0, 600)
-            # post.set_ylim(0, 600)
-            post.set_title("Final spline")
+        if TESTING:
+            with torch.no_grad():
+                fig = plt.figure(figsize=(8, 4.8))
+                fig.clf()
+                pre = fig.add_subplot(121)
+                pre.imshow(img, cmap="gray")
+                # pre.set_xlim(0, 600)
+                # pre.set_ylim(0, 600)
+                pre.set_title("Initial spline")
+                post = fig.add_subplot(122)
+                post.imshow(img, cmap="gray")
+                # post.set_xlim(0, 600)
+                # post.set_ylim(0, 600)
+                post.set_title("Final spline")
 
-            # pre.plot(target[1], target[0], color="b")
+                # pre.plot(target[1], target[0], color="b")
 
-            pre.scatter(init_control_pts[which_curve][1], init_control_pts[which_curve][0], color="r", s=2)
-            pre.plot(initial_curve[which_curve][1], initial_curve[which_curve][0], color="g")
+                pre.scatter(init_control_pts[which_curve][1], init_control_pts[which_curve][0], color="r", s=2)
+                pre.plot(initial_curve[which_curve][1], initial_curve[which_curve][0], color="g")
 
-            # post.plot(target[1], target[0], color="b")
+                # post.plot(target[1], target[0], color="b")
 
-            post.scatter(control_pts[1], control_pts[0], color="r", s=2)
-            post.plot(final_curve[which_curve][1], final_curve[which_curve][0], color="g")
+                post.scatter(control_pts[1], control_pts[0], color="r", s=2)
+                post.plot(final_curve[which_curve][1], final_curve[which_curve][0], color="g")
 
-            plt.show()
-            # For debugging
-            # test_tar = target.numpy()
-            # test_ctrl = control_pts.numpy()
-            # sdFASDFASDF = 1
+                plt.show()
+                # For debugging
+                # test_tar = target.numpy()
+                # test_ctrl = control_pts.numpy()
+                # sdFASDFASDF = 1
+    return final_curve[0], final_curve[1]
+
+if __name__ == "__main__":
+    fit_2D_curves()
