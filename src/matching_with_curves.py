@@ -57,18 +57,21 @@ def match_curves():
     #         torch.tensor([curve_r[1, i] for i in indicies])
     #     )
     # )
-    disp = torch.zeros(n)
-    for i in range(n):
-        ctrl_l = proj_ctrl_l[:, i]
-        idx = indicies[i]
-        min_off = max(0, idx-8)
-        max_off = min(curve_l.size(1), idx + 9)
-        y_dist = np.array([abs(curve_r[0, off] - ctrl_l[0]) for off in range(min_off, max_off)])
+    disp = torch.zeros(curve_l.size(1))
+    scan_window = 10
+    c = 0.3
+    for i in range(curve_l.size(1)):
+        pt_l = curve_l[:, i]
+        min_off = max(0, i-scan_window)
+        max_off = min(curve_l.size(1), i + scan_window)
+        y_dist = np.array([abs(curve_r[0, off] - pt_l[0]) + c * abs(i - off) for off in range(min_off, max_off)])
+        # if (np.min(y_dist) > 4):
+        #     continue
         best_idx = np.argmin(y_dist) + min_off
-        disp[i] = ctrl_l[1] - curve_r[1, best_idx]
+        disp[i] = pt_l[1] - curve_r[1, best_idx]
 
-    # disp = proj_ctrl_l[1] - proj_ctrl_r[1]
-    curve_3D_l = torch.stack([proj_ctrl_l[0], proj_ctrl_l[1], disp])
+    disp = curve_l[1] - curve_r[1]
+    curve_3D_l = torch.stack([curve_l[0], curve_l[1], disp])
 
     ax = plt.axes(projection='3d')
     ax.view_init(0, 0)
