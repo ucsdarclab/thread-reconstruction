@@ -6,7 +6,7 @@ import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
 from pixel_ordering import order_pixels
 
-OPENCV_MATCHING = False
+OPENCV_MATCHING = True
 
 def stereo_match():
     # Get normal and segmented images
@@ -20,6 +20,10 @@ def stereo_match():
     img1seg = cv2.cvtColor(img1seg, cv2.COLOR_BGR2GRAY)
     img2seg = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img2seg = cv2.cvtColor(img2seg, cv2.COLOR_BGR2GRAY)
+
+    # TODO remove if experimentation fails
+    img1 = img1seg
+    img2 = img2seg
 
     # Read in camera calibration values
     cv_file = cv2.FileStorage(img_dir + "camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
@@ -45,13 +49,13 @@ def stereo_match():
     # plt.show()
 
     if OPENCV_MATCHING:
-        sgbm_win_size = 3
+        sgbm_win_size = 7
         sgbm = cv2.StereoSGBM.create(
             numDisparities=((img_size[0]//8) + 15) & -16,
-            blockSize=5,
-            # P1=8*9,
-            # P2=32*9,
-            # disp12MaxDiff=1,
+            blockSize=sgbm_win_size,
+            P1=8*1*sgbm_win_size*sgbm_win_size,
+            P2=32*1*sgbm_win_size*sgbm_win_size,
+            disp12MaxDiff=1,
             # preFilterCap=63,
             # uniquenessRatio=10,
             # speckleWindowSize=100,
@@ -66,10 +70,10 @@ def stereo_match():
         # plt.show()
         img_3D = cv2.reprojectImageTo3D(disp, Q)
         ordering, _ = order_pixels()
-        ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
-            for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
-        ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
-            for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+        # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
+        #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
+        # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
+        #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
         # plt.imshow(img1)
         # plt.scatter(ordering_0, ordering_1)
         # plt.show()
@@ -83,16 +87,17 @@ def stereo_match():
         # plt.imshow(np.uint8(img_3D))
         # img_3D = img_3D.reshape((-1, 3))
         ax = plt.axes(projection='3d')
+        ax.view_init(0, 0)
         ax.scatter(
-            img_3D[ordering_1, ordering_0, 0],
-            img_3D[ordering_1, ordering_0, 1],
-            img_3D[ordering_1, ordering_0, 2]
+            ordering[1],#img_3D[ordering[1], ordering[0], 0],
+            ordering[0],#img_3D[ordering[1], ordering[0], 1],
+            img_3D[ordering[1], ordering[0], 2]
         )
         plt.show()
     else:
         # get orderings
         ord1, ord2 = order_pixels()
-        thresh = 20
+        thresh = 10
         min_disp = 0#15
         max_disp = 40
         # numerator for disparity calculation
@@ -107,15 +112,25 @@ def stereo_match():
         kernel = np.ones((3, 3))
         ord2mat = cv2.dilate(ord2mat, kernel, iterations=1)
 
+        prev_disp = 0
+        lam = 0.5
         for i in range(ord1.shape[1]):
             pix1 = (ord1[1, i], ord1[0, i])
-            difference = np.array([abs(img1seg[pix1] - ord2mat[pix1[0], pix1[1] - off]) for off in range(min_disp, max_disp)])
-            if np.min(difference) > thresh:
+            energy = np.array([(img1seg[pix1] - ord2mat[pix1[0], pix1[1] - off])**2 for off in range(min_disp, max_disp)])
+            # factor in smoothness
+            if i != 0:
+                # print(energy.shape)
+                # print()
+                # print(np.linspace(prev_disp - min_disp, max_disp - prev_disp, endpoint=False, num=energy.shape[0]))
+                # print(np.abs(np.arange(prev_disp - min_disp, max_disp - prev_disp)).shape)
+                energy += lam * np.abs(np.array([prev_disp - min_disp - i for i in range(energy.shape[0])]))
+            if np.min(energy) > thresh:
                 continue
-            disp = np.argmin(difference) + min_disp
+            disp = np.argmin(energy) + min_disp
             if disp == 0:
                 continue
             ord_3D.append([pix1[0], pix1[1], num / disp])
+            prev_disp = disp
 
         ord_3D = np.array(ord_3D)
         # ordMed = np.array([
