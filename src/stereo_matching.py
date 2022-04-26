@@ -49,7 +49,7 @@ def stereo_match():
     # plt.show()
 
     if OPENCV_MATCHING:
-        sgbm_win_size = 7
+        sgbm_win_size = 5
         sgbm = cv2.StereoSGBM.create(
             numDisparities=((img_size[0]//8) + 15) & -16,
             blockSize=sgbm_win_size,
@@ -59,35 +59,22 @@ def stereo_match():
             # preFilterCap=63,
             # uniquenessRatio=10,
             # speckleWindowSize=100,
-            speckleRange=10
+            # speckleRange=10
         )
         disp = sgbm.compute(img1, img2)
-        # max_disp = max(abs(np.min(disp)), abs(np.max(disp)))
-        # disp = cv2.normalize(disp, disp, alpha=255,
-        #                           beta=0, norm_type=cv2.NORM_MINMAX)
         disp = np.float32(disp) / 16.0
-        # plt.imshow(disp, cmap="gray")
-        # plt.show()
         img_3D = cv2.reprojectImageTo3D(disp, Q)
         ordering, _ = order_pixels()
         # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
         #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
         # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
         #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
-        # plt.imshow(img1)
-        # plt.scatter(ordering_0, ordering_1)
-        # plt.show()
-        # print(img_3D.shape)
-        # exit(0)
 
-        img_3D = np.clip(img_3D, -1000, 1000)
-        # img_3D -= img_3D.min()
-        
-        # img_3D *= 255 / np.abs(img_3D).max()
-        # plt.imshow(np.uint8(img_3D))
-        # img_3D = img_3D.reshape((-1, 3))
         ax = plt.axes(projection='3d')
         ax.view_init(0, 0)
+        # ax.set_xlim(1, 500)
+        # ax.set_ylim(1, 500)
+        # ax.set_zlim(100, 300)
         ax.scatter(
             ordering[1],#img_3D[ordering[1], ordering[0], 0],
             ordering[0],#img_3D[ordering[1], ordering[0], 1],
