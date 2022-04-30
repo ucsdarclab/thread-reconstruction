@@ -7,6 +7,7 @@ from mpl_toolkits import mplot3d
 from pixel_ordering import order_pixels
 
 OPENCV_MATCHING = True
+TESTING = False
 
 def stereo_match():
     # Get normal and segmented images
@@ -65,22 +66,37 @@ def stereo_match():
         disp = np.float32(disp) / 16.0
         img_3D = cv2.reprojectImageTo3D(disp, Q)
         ordering, _ = order_pixels()
-        # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
-        #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
-        # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
-        #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+        points_3D = img_3D[ordering[1], ordering[0]]#np.stack([
+        #     ordering[1],
+        #     ordering[0],
+        #     img_3D[ordering[1], ordering[0], 2]
+        # ])
+        if TESTING:
+            ordering, ordering2 = order_pixels()
+            # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
+            #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
+            # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
+            #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+            camera_3D = img_3D[ordering[1, 0], ordering[0, 0]]
+            camera_3D = np.array([camera_3D[0], camera_3D[1], camera_3D[2], 1])
+            camera_proj = np.matmul(P2, camera_3D)
+            camera_proj /= camera_proj[-1]
+            print(camera_proj)
+            print(ordering2[..., 0])
+            return
 
-        ax = plt.axes(projection='3d')
-        ax.view_init(0, 0)
-        # ax.set_xlim(1, 500)
-        # ax.set_ylim(1, 500)
-        # ax.set_zlim(100, 300)
-        ax.scatter(
-            ordering[1],#img_3D[ordering[1], ordering[0], 0],
-            ordering[0],#img_3D[ordering[1], ordering[0], 1],
-            img_3D[ordering[1], ordering[0], 2]
-        )
-        plt.show()
+            ax = plt.axes(projection='3d')
+            ax.view_init(0, 0)
+            # ax.set_xlim(1, 500)
+            # ax.set_ylim(1, 500)
+            # ax.set_zlim(100, 300)
+            ax.scatter(
+                ordering[1],#img_3D[ordering[1], ordering[0], 0],
+                ordering[0],#img_3D[ordering[1], ordering[0], 1],
+                img_3D[ordering[1], ordering[0], 2]
+            )
+            plt.show()
+        return P1, P2, points_3D
     else:
         # get orderings
         ord1, ord2 = order_pixels()

@@ -5,9 +5,10 @@ import torch
 import numpy as np
 from DSA_copy.nurbs_dsa.nurbs_eval import BasisFunc
 from pixel_ordering import order_pixels
+from stereo_matching import stereo_match
 from tqdm import tqdm
 
-TESTING = False
+TESTING = True
 """
 Much of this code is based off of this repo:
 https://github.com/idealab-isu/DSA
@@ -172,7 +173,149 @@ def fit_2D_curves():
                 # test_tar = target.numpy()
                 # test_ctrl = control_pts.numpy()
                 # sdFASDFASDF = 1
+    
+    spacings = [
+        (final_curve[0][:, 1:] - final_curve[0][:, :-1]).detach().numpy(),
+        (final_curve[1][:, 1:] - final_curve[1][:, :-1]).detach().numpy()
+    ]
+    spacings = [
+        np.linalg.norm(spacings[0], axis=0),
+        np.linalg.norm(spacings[1], axis=0)
+    ]
+    print([np.min(spacings[0]), np.min(spacings[1])])
+    print([np.max(spacings[0]), np.max(spacings[1])])
     return final_curve[0].detach(), final_curve[1].detach()
 
+def fit_3D_curve():
+    P1, P2, points_3D = stereo_match()
+    # in x, y, z order
+    points_3D = torch.tensor(points_3D).permute(1, 0)
+
+    # Initialize useful evaluation constants
+    init_control_pts = None
+    initial_curve = None
+    final_curve = None
+
+    eval_3D = 600
+    eval_2D = 150
+    
+    # Calculate spline generation constants
+    p = 3
+    n = 40
+
+    u = torch.linspace(1e-5, 1.0-1e-5, steps=eval_3D, dtype=torch.float32)
+    u = u.unsqueeze(0)
+
+    knot_int_u = torch.ones(n+p+1-2*p-1).unsqueeze(0)
+    knot_rep_p_0 = torch.zeros(1,p+1)
+    knot_rep_p_1 = torch.zeros(1,p)
+    knot_u = torch.cat((knot_rep_p_0,knot_int_u,knot_rep_p_1), -1)
+
+    U_c = torch.cumsum(torch.where(knot_u<0.0, knot_u*0+1e-4, knot_u), dim=1)
+    U = (U_c - U_c[:,0].unsqueeze(-1)) / (U_c[:,-1].unsqueeze(-1) - U_c[:,0].unsqueeze(-1))
+
+    uspan_uv = torch.stack([torch.min(
+        torch.where(
+            (u - U[s,p:-p].unsqueeze(1))>1e-8,
+            u - U[s,p:-p].unsqueeze(1),
+            (u - U[s,p:-p].unsqueeze(1))*0.0 + 1
+        ),
+        0,
+        keepdim=False
+    )[1]+p for s in range(U.size(0))])
+
+    Nu_uv = BasisFunc.apply(u, U, uspan_uv, p).squeeze()
+
+    # Initialize control points
+    indicies = [(i * points_3D.size(1)) // n for i in range(n)]
+    control_pts = torch.stack(
+        (
+            torch.tensor([points_3D[0, i] for i in indicies]),
+            torch.tensor([points_3D[1, i] for i in indicies]),
+            torch.tensor([points_3D[2, i] for i in indicies])
+        )
+    )
+    if TESTING:
+        init_control_pts = control_pts.clone()
+    control_pts.requires_grad = True
+
+    # Initialize ground truth
+    ord1, ord2 = order_pixels()
+
+    ord1 = torch.tensor(ord1, dtype=torch.float32)
+    ord2 = torch.tensor(ord2, dtype=torch.float32)
+    idx1 = [(i * ord1.size(1)) // eval_2D for i in range(eval_2D)]
+    idx2 = [(i * ord2.size(1)) // eval_2D for i in range(eval_2D)]
+
+    target1 = torch.stack(
+        (
+            torch.tensor([ord1[1, i] for i in idx1]),
+            torch.tensor([ord1[0, i] for i in idx1])
+        )
+    )
+    target2 = torch.stack(
+        (
+            torch.tensor([ord2[1, i] for i in idx2]),
+            torch.tensor([ord2[0, i] for i in idx2])
+        )
+    )
+
+    # spacings = [
+    #     target1[:, 1:] - target1[:, :-1],
+    #     target2[:, 1:] - target2[:, :-1]
+    # ]
+    # spacings = [
+    #     np.linalg.norm(spacings[0], axis=0),
+    #     np.linalg.norm(spacings[1], axis=0)
+    # ]
+    # print([np.min(spacings[0]), np.min(spacings[1])])
+    # print([np.max(spacings[0]), np.max(spacings[1])])
+
+    # Peform grad descent
+    num_iter = 50
+    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
+
+    for j in range(num_iter):#pbar:
+        def closure():
+            opt.zero_grad()
+
+            ctrl_pts = control_pts.permute(1, 0)
+            pts = torch.stack([ctrl_pts[uspan_uv[0,:] - p + l, :] for l in range(p + 1)])
+
+            curve = torch.stack([
+                torch.sum(
+                    Nu_uv * pts[:, :, i],
+                    dim=0
+                )
+            for i in range(pts.size(2))])
+
+            with torch.no_grad():
+                if False and TESTING and initial_curve == None:
+                    initial_curve = curve.clone()
+                else:
+                    final_curve = curve
+
+            curve = torch.cat((curve, torch.ones((1, curve.size(1)))), dim=0)
+            proj1 = torch.matmul(torch.tensor(P1, dtype=torch.float32), curve.permute(1, 0).unsqueeze(-1))
+            for i in range(proj1.size(0)):
+                proj1[i] /= proj1[i, 2, 0].clone()
+            
+            loss = ((target-curve)**2).mean()
+            loss.backward(retain_graph=True)
+            return loss
+
+        closure()
+        return
+        if (j % 100) < learn_partition:
+            loss = opt_1.step(closure)
+        else:
+            # loss = opt_2.step(closure)
+            pass
+    
+
+    
+    
+
+
 if __name__ == "__main__":
-    fit_2D_curves()
+    fit_3D_curve()
