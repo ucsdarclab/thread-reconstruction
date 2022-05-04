@@ -277,6 +277,8 @@ def fit_3D_curve():
 
     for j in range(num_iter):#pbar:
         def closure():
+            nonlocal initial_curve
+            nonlocal final_curve
             opt.zero_grad()
 
             ctrl_pts = control_pts.permute(1, 0)
@@ -290,15 +292,36 @@ def fit_3D_curve():
             for i in range(pts.size(2))])
 
             with torch.no_grad():
-                if False and TESTING and initial_curve == None:
+                if TESTING and initial_curve == None:
                     initial_curve = curve.clone()
                 else:
                     final_curve = curve
 
+            #y, x, z 
             curve = torch.cat((curve, torch.ones((1, curve.size(1)))), dim=0)
+            #x, y, z
             proj1 = torch.matmul(torch.tensor(P1, dtype=torch.float32), curve.permute(1, 0).unsqueeze(-1))
             for i in range(proj1.size(0)):
                 proj1[i] /= proj1[i, 2, 0].clone()
+            proj2 = torch.matmul(torch.tensor(P2, dtype=torch.float32), curve.permute(1, 0).unsqueeze(-1))
+            for i in range(proj2.size(0)):
+                proj2[i] /= proj2[i, 2, 0].clone()
+            
+            with torch.no_grad():
+                plt.figure(1)
+                ax1 = plt.axes(projection="3d")
+                ax1.view_init(0, 0)
+                ax1.plot(curve[1], curve[0], curve[2])
+
+                plt.figure(2)
+                ax2 = plt.axes()
+                ax2.plot(proj1[:, 0, 0], proj1[:, 1, 0])
+
+                plt.figure(3)
+                ax3 = plt.axes()
+                ax3.plot(proj2[:, 0, 0], proj2[:, 1, 0])
+                plt.show()
+                exit(0)
             
             loss = ((target-curve)**2).mean()
             loss.backward(retain_graph=True)
