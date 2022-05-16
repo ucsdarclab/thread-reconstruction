@@ -7,6 +7,7 @@ from DSA_copy.nurbs_dsa.nurbs_eval import BasisFunc
 from pixel_ordering import order_pixels
 from stereo_matching import stereo_match
 from tqdm import tqdm
+from frechetdist import frdist
 
 TESTING = True
 """
@@ -276,16 +277,27 @@ def fit_3D_curve():
     #y, x
     target1 = torch.stack(
         (
-            torch.tensor([ord1[1, i] for i in idx1]),
-            torch.tensor([ord1[0, i] for i in idx1])
+            torch.tensor([ord1[0, i] for i in idx1]),
+            torch.tensor([ord1[1, i] for i in idx1])
         )
-    ).permute(1, 0)
+    ).permute(1, 0).unsqueeze(1).unsqueeze(1)
     target2 = torch.stack(
         (
-            torch.tensor([ord2[1, i] for i in idx2]),
-            torch.tensor([ord2[0, i] for i in idx2])
+            torch.tensor([ord2[0, i] for i in idx2]),
+            torch.tensor([ord2[1, i] for i in idx2])
         )
-    ).permute(1, 0)
+    ).permute(1, 0).unsqueeze(1).unsqueeze(1)
+
+    # with torch.no_grad():
+    #     plt.figure(1)
+    #     plt.imshow(img_l, cmap="gray")
+    #     plt.plot(target1[:, 0], target1[:, 1])
+
+    #     plt.figure(2)
+    #     plt.imshow(img_r, cmap="gray")
+    #     plt.plot(target2[:, 0], target2[:, 1])
+    #     plt.show()
+    #     exit(0)
 
     # spacings = [
     #     target1[:, 1:] - target1[:, :-1],
@@ -299,8 +311,8 @@ def fit_3D_curve():
     # print([np.max(spacings[0]), np.max(spacings[1])])
 
     # Peform grad descent
-    num_iter = 5
-    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
+    num_iter = 100
+    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.04, max_iter=3)
 
     
     for j in tqdm(range(num_iter)):#pbar:
@@ -380,49 +392,72 @@ def fit_3D_curve():
 
 
 
-            # get dists for left projection
-            dists_l = torch.zeros(eval_2D)
-            for i, pix1 in enumerate(target1):
-                # bound a sliding window of size 4
-                min_idx = max(0, i*4 - 5)
-                max_idx = min(eval_3D, i*4 + 6) - 3
+            # Make 11 scan windows per target, 4 points per window
+            off = 4
+            scan_size = 10
+            proj1_windows = torch.stack([proj1[i:i+off] for i in range(proj1.size(0)-off+1)])
+            proj1_w_start = torch.stack([proj1_windows[0] for _ in range(scan_size//2)])
+            proj1_w_end = torch.stack([proj1_windows[-1] for _ in range(scan_size//2)])
+            proj1_windows = torch.cat((proj1_w_start, proj1_windows, proj1_w_end), dim=0)
+            proj1_scans = torch.stack([
+                proj1_windows[i*off : i*off+scan_size+1]
+            for i in range(target1.size(0))])
+            # Get distances from target to each window, keeping min window out of 11
+            dists1 = (proj1_scans - target1) ** 2
+            loss1 = torch.min(torch.mean(dists1, dim=(2, 3)), dim=1)[0].mean()
 
-                min_dist = None
-                for idx in range(min_idx, max_idx):
-                    curr_dist = 0
-                    for off in range(4):
-                        curr_dist += torch.linalg.norm(pix1 - proj1[idx+off])
-                    curr_dist /= 4
+            proj2_windows = torch.stack([proj2[i:i+off] for i in range(proj2.size(0)-off+1)])
+            proj2_w_start = torch.stack([proj2_windows[0] for _ in range(scan_size//2)])
+            proj2_w_end = torch.stack([proj2_windows[-1] for _ in range(scan_size//2)])
+            proj2_windows = torch.cat((proj2_w_start, proj2_windows, proj2_w_end), dim=0)
+            proj2_scans = torch.stack([
+                proj2_windows[i*off : i*off+scan_size+1]
+            for i in range(target2.size(0))])
+            dists2 = (proj2_scans - target2) ** 2
+            loss2 = torch.min(torch.mean(dists2, dim=(2, 3)), dim=1)[0].mean()
+            # # get dists for left projection
+            # dists_l = torch.zeros(eval_2D)
+            # for i, pix1 in enumerate(target1):
+            #     # bound a sliding window of size 4
+            #     min_idx = max(0, i*4 - 5)
+            #     max_idx = min(eval_3D, i*4 + 6) - 3
 
-                    if min_dist == None:
-                        min_dist = curr_dist
-                    else:
-                        min_dist = torch.min(min_dist, curr_dist)
+            #     min_dist = None
+            #     for idx in range(min_idx, max_idx):
+            #         curr_dist = 0
+            #         for off in range(4):
+            #             curr_dist += torch.linalg.norm(pix1 - proj1[idx+off])
+            #         curr_dist /= 4
+
+            #         if min_dist == None:
+            #             min_dist = curr_dist
+            #         else:
+            #             min_dist = torch.min(min_dist, curr_dist)
                     
-                dists_l[i] = min_dist
+            #     dists_l[i] = min_dist
             
-            # get dists for right projection
-            dists_r = torch.zeros(eval_2D)
-            for i, pix2 in enumerate(target2):
-                # bound a sliding window of size 4
-                min_idx = max(0, i*4 - 5)
-                max_idx = min(eval_3D, i*4 + 6) - 3
+            # # get dists for right projection
+            # dists_r = torch.zeros(eval_2D)
+            # for i, pix2 in enumerate(target2):
+            #     # bound a sliding window of size 4
+            #     min_idx = max(0, i*4 - 5)
+            #     max_idx = min(eval_3D, i*4 + 6) - 3
 
-                min_dist = None
-                for idx in range(min_idx, max_idx):
-                    curr_dist = 0
-                    for off in range(4):
-                        curr_dist += torch.linalg.norm(pix2 - proj2[idx+off])
-                    curr_dist /= 4
+            #     min_dist = None
+            #     for idx in range(min_idx, max_idx):
+            #         curr_dist = 0
+            #         for off in range(4):
+            #             curr_dist += torch.linalg.norm(pix2 - proj2[idx+off])
+            #         curr_dist /= 4
 
-                    if min_dist == None:
-                        min_dist = curr_dist
-                    else:
-                        min_dist = torch.min(min_dist, curr_dist)
+            #         if min_dist == None:
+            #             min_dist = curr_dist
+            #         else:
+            #             min_dist = torch.min(min_dist, curr_dist)
                     
-                dists_r[i] = min_dist
+            #     dists_r[i] = min_dist
 
-            loss = dists_l.mean() + dists_r.mean()
+            loss = loss1 + loss2
 
             
             loss.backward(retain_graph=True)
@@ -450,17 +485,17 @@ def fit_3D_curve():
 
             pre.scatter(init_control_pts[1], init_control_pts[0], init_control_pts[2], color="r", s=2)
             pre.plot(initial_curve[1], initial_curve[0], initial_curve[2], color="g")
-            pre_l.scatter(init_ctrl_l[0], init_ctrl_l[1], color="r", s=2)
-            pre_l.plot(init_curve_l[0], init_curve_l[1], color="g")
-            pre_r.scatter(init_ctrl_r[0], init_ctrl_r[1], color="r", s=2)
-            pre_r.plot(init_curve_r[0], init_curve_r[1], color="g")
+            pre_l.scatter(init_ctrl_l[:, 0], init_ctrl_l[:, 1], color="r", s=2)
+            pre_l.plot(init_curve_l[:, 0], init_curve_l[:, 1], color="g")
+            pre_r.scatter(init_ctrl_r[:, 0], init_ctrl_r[:, 1], color="r", s=2)
+            pre_r.plot(init_curve_r[:, 0], init_curve_r[:, 1], color="g")
 
             post.scatter(control_pts[1], control_pts[0], control_pts[2], color="r", s=2)
             post.plot(final_curve[1], final_curve[0], final_curve[2], color="g")
-            post_l.scatter(final_ctrl_l[0], final_ctrl_l[1], color="r", s=2)
-            post_l.plot(final_curve_l[0], final_curve_l[1], color="g")
-            post_r.scatter(final_ctrl_r[0], final_ctrl_r[1], color="r", s=2)
-            post_r.plot(final_curve_r[0], final_curve_r[1], color="g")
+            post_l.scatter(final_ctrl_l[:, 0], final_ctrl_l[:, 1], color="r", s=2)
+            post_l.plot(final_curve_l[:, 0], final_curve_l[:, 1], color="g")
+            post_r.scatter(final_ctrl_r[:, 0], final_ctrl_r[:, 1], color="r", s=2)
+            post_r.plot(final_curve_r[:, 0], final_curve_r[:, 1], color="g")
 
             plt.show()
     
