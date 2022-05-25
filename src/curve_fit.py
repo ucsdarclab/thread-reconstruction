@@ -311,8 +311,8 @@ def fit_3D_curve():
     # print([np.max(spacings[0]), np.max(spacings[1])])
 
     # Peform grad descent
-    num_iter = 100
-    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.04, max_iter=3)
+    num_iter = 50
+    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
 
     
     for j in tqdm(range(num_iter)):#pbar:
@@ -392,6 +392,9 @@ def fit_3D_curve():
 
 
 
+            # loss = frech_dist(target1, proj1) + frech_dist(target2, proj2)
+            # print(loss)
+
             # Make 11 scan windows per target, 4 points per window
             off = 4
             scan_size = 10
@@ -415,50 +418,8 @@ def fit_3D_curve():
             for i in range(target2.size(0))])
             dists2 = (proj2_scans - target2) ** 2
             loss2 = torch.min(torch.mean(dists2, dim=(2, 3)), dim=1)[0].mean()
-            # # get dists for left projection
-            # dists_l = torch.zeros(eval_2D)
-            # for i, pix1 in enumerate(target1):
-            #     # bound a sliding window of size 4
-            #     min_idx = max(0, i*4 - 5)
-            #     max_idx = min(eval_3D, i*4 + 6) - 3
-
-            #     min_dist = None
-            #     for idx in range(min_idx, max_idx):
-            #         curr_dist = 0
-            #         for off in range(4):
-            #             curr_dist += torch.linalg.norm(pix1 - proj1[idx+off])
-            #         curr_dist /= 4
-
-            #         if min_dist == None:
-            #             min_dist = curr_dist
-            #         else:
-            #             min_dist = torch.min(min_dist, curr_dist)
-                    
-            #     dists_l[i] = min_dist
-            
-            # # get dists for right projection
-            # dists_r = torch.zeros(eval_2D)
-            # for i, pix2 in enumerate(target2):
-            #     # bound a sliding window of size 4
-            #     min_idx = max(0, i*4 - 5)
-            #     max_idx = min(eval_3D, i*4 + 6) - 3
-
-            #     min_dist = None
-            #     for idx in range(min_idx, max_idx):
-            #         curr_dist = 0
-            #         for off in range(4):
-            #             curr_dist += torch.linalg.norm(pix2 - proj2[idx+off])
-            #         curr_dist /= 4
-
-            #         if min_dist == None:
-            #             min_dist = curr_dist
-            #         else:
-            #             min_dist = torch.min(min_dist, curr_dist)
-                    
-            #     dists_r[i] = min_dist
 
             loss = loss1 + loss2
-
             
             loss.backward(retain_graph=True)
             return loss
@@ -501,7 +462,30 @@ def fit_3D_curve():
     
 
     
-    
+def frech_dist(p, q):
+    f_dists = torch.ones((p.size(0), q.size(0))) * float("inf")
+    for i in range(f_dists.size(0)):
+        for j in range(i*4, min(i*4+10, f_dists.size(1))):
+            # Set initial distance
+            if i == 0 and j == 0:
+                f_dists[i, j] = torch.linalg.norm(p[i] - q[j])
+                continue
+
+            # Get possible previous distances
+            prevs = []
+            if i > 0:
+                prevs.append(f_dists[i-1, j])
+            if j > 0:
+                prevs.append(f_dists[i, j-1])
+            if i > 0 and j > 0:
+                prevs.append(f_dists[i-1, j-1])
+
+            # Get frechet distance at current location from prev distances
+            f_dists[i, j] = torch.max(torch.min(torch.tensor(prevs)), torch.linalg.norm(p[i] - q[j]))
+    return f_dists[-1, -1]
+            
+            
+
 
 
 if __name__ == "__main__":
