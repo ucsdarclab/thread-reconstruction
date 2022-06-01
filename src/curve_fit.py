@@ -312,7 +312,7 @@ def fit_3D_curve():
 
     # Peform grad descent
     num_iter = 50
-    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.4, max_iter=3)
+    opt = torch.optim.LBFGS(iter([control_pts]), lr=0.1, max_iter=3)
 
     
     for j in tqdm(range(num_iter)):#pbar:
@@ -342,6 +342,13 @@ def fit_3D_curve():
                     initial_curve = curve.clone()
                 else:
                     final_curve = curve
+            
+            # Calculate skeletonized joint energy loss
+            curve_diff = curve[:, 1:] - curve[:, :-1]
+            curve_diff = torch.nn.functional.normalize(curve_diff, p=2, dim=0)
+            diff_dots = torch.sum(curve_diff[:, 1:] * curve_diff[:, :-1], dim=0)#torch.mm(curve_diff[:, 1:].transpose(0, 1), curve_diff[:, :-1])
+            diff_dots = torch.clip(diff_dots, -1+1e-7, 1-1e-7)
+            loss = torch.acos(diff_dots).mean()*100
 
             #x, y, z 
             curve = torch.cat((curve, torch.ones((1, curve.size(1)))), dim=0)
@@ -419,7 +426,7 @@ def fit_3D_curve():
             dists2 = (proj2_scans - target2) ** 2
             loss2 = torch.min(torch.mean(dists2, dim=(2, 3)), dim=1)[0].mean()
 
-            loss = loss1 + loss2
+            loss += loss1 + loss2
             
             loss.backward(retain_graph=True)
             return loss
