@@ -27,7 +27,7 @@ def order_pixels():
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     img_r_init = img_r.copy()
     thresh = 210
-    upsilon = 5
+    upsilon = 10
     roi = []
     for i in range(-upsilon, upsilon+1):
         for j in range(-upsilon, upsilon+1):
@@ -94,6 +94,7 @@ def order_pixels():
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
     max_chunksize = 5
+    sum_thresh = 7
     while len(active_l):
         # calculate min cost active node
         min_cost_l = np.Inf
@@ -109,6 +110,10 @@ def order_pixels():
                 if (img_l[row_slice_l, col_slice_l] > thresh).any() \
                     or (curve_set_l[row_slice_l, col_slice_l]).any():
                     break
+            
+            # Prevent doubling back
+            if step == 1 and np.sum(curve_set_l[prow_l-2:prow_l+3, pcol_l-2:pcol_l+3]) > sum_thresh:
+                continue
             
             # Calculate triangle area terms
             to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
