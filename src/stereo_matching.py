@@ -6,8 +6,8 @@ import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
 from pixel_ordering import order_pixels
 
-OPENCV_MATCHING = True
-TESTING = False
+OPENCV_MATCHING = False
+TESTING = True
 
 def stereo_match():
     # Get normal and segmented images
@@ -98,57 +98,70 @@ def stereo_match():
             plt.show()
         return P1, P2, points_3D
     else:
+        # TODO Uncomment
         # get orderings
-        ord1, ord2 = order_pixels()
-        thresh = 10
+        # ord1, ord2 = order_pixels()
+        img1 = np.float32(img1)
+        img2 = np.float32(img2)
+        thresh = 40
+        pix_thresh = 210
         min_disp = 0#15
         max_disp = 40
-        # numerator for disparity calculation
+        # numerator for 3D calculation
         num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
         ord_3D = []
 
-        ord2mat = np.zeros((433, 577))
-        # get better pix2 lookup. TODO Optimize
-        for i in range(ord2.shape[1]):
-            pix2 = (ord2[1, i], ord2[0, i])
-            ord2mat[pix2] = img2seg[pix2]#np.mean(img2[pix2[0], pix2[1], :])
-        kernel = np.ones((3, 3))
-        ord2mat = cv2.dilate(ord2mat, kernel, iterations=1)
+        # TODO Uncomment
+        # ord2mat = np.zeros((433, 577))
+        # # get better pix2 lookup. TODO Optimize
+        # for i in range(ord2.shape[1]):
+        #     pix2 = (ord2[1, i], ord2[0, i])
+        #     ord2mat[pix2] = img2seg[pix2]#np.mean(img2[pix2[0], pix2[1], :])
+        # kernel = np.ones((3, 3))
+        # ord2mat = cv2.dilate(ord2mat, kernel, iterations=1)
 
+        pixels1 = np.argwhere(img1<pix_thresh)
         prev_disp = 0
         lam = 0.5
-        for i in range(ord1.shape[1]):
-            pix1 = (ord1[1, i], ord1[0, i])
-            energy = np.array([(img1seg[pix1] - ord2mat[pix1[0], pix1[1] - off])**2 for off in range(min_disp, max_disp)])
+        disps = np.zeros_like(img2)
+        for i in range(pixels1.shape[0]):#range(ord1.shape[1]):
+            pix1 = (pixels1[i][0], pixels1[i][1])#(ord1[1, i], ord1[0, i])
+            energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(min_disp, max_disp)])
             # factor in smoothness
-            if i != 0:
-                # print(energy.shape)
-                # print()
-                # print(np.linspace(prev_disp - min_disp, max_disp - prev_disp, endpoint=False, num=energy.shape[0]))
-                # print(np.abs(np.arange(prev_disp - min_disp, max_disp - prev_disp)).shape)
+            #TODO get rid of false
+            if False and i != 0:
+                # TODO Make it squared energy?
                 energy += lam * np.abs(np.array([prev_disp - min_disp - i for i in range(energy.shape[0])]))
-            if np.min(energy) > thresh:
-                continue
+            # if np.min(energy) > thresh:
+            #     continue
             disp = np.argmin(energy) + min_disp
             if disp == 0:
                 continue
-            ord_3D.append([pix1[0], pix1[1], num / disp])
+            # ord_3D.append([pix1[0], pix1[1], num / disp])
+            disps[pix1] = disp
             prev_disp = disp
 
-        ord_3D = np.array(ord_3D)
-        # ordMed = np.array([
-        #     [ord_3D[i, 0], ord_3D[i, 1], np.median(ord_3D[i-5:i+6, 2])] for i in range(5, ord_3D.shape[0] - 5)
-        # ])
-        # ord_3D = ordMed
-        # plt.plot(ord_3D[:, 2])
-        ax = plt.axes(projection='3d')
-        ax.view_init(0, 0)
-        ax.scatter(
-            ord_3D[:, 0],
-            ord_3D[:, 1],
-            ord_3D[:, 2]
-        )
-        ax.set_zlim(-5, 400)
+        img2rgb = cv2.cvtColor(img2,cv2.COLOR_GRAY2RGB)
+        for i in range(pixels1.shape[0]):
+            pix1 = (pixels1[i][0], pixels1[i][1])
+            if disps[pix1]:
+                img2rgb[pix1[0], int(pix1[1] - disps[pix1]), 0] -= 60
+                img2rgb[pix1[0], int(pix1[1] - disps[pix1]), 2] -= 60
+        img2rgb = np.uint8(np.clip(img2rgb, 0, 255))
+        plt.imshow(img2rgb)
+        plt.figure(2)
+        heatmap = plt.pcolor(disps)
+        plt.colorbar(heatmap)
+        plt.gca().invert_yaxis()
+        # ord_3D = np.array(ord_3D)
+        # ax = plt.axes(projection='3d')
+        # ax.view_init(0, 0)
+        # ax.scatter(
+        #     ord_3D[:, 0],
+        #     ord_3D[:, 1],
+        #     ord_3D[:, 2]
+        # )
+        # ax.set_zlim(-5, 400)
         plt.show()
             
 
