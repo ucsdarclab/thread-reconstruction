@@ -102,36 +102,64 @@ def stereo_match():
         img2 = np.float32(img2)
         thresh = 40
         pix_thresh = 210
-        min_disp = 0
         max_disp = 40
         # numerator for 3D calculation
         num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
 
-        pixels1 = np.argwhere(img1<pix_thresh)
-        prev_disp = 0
-        disps = np.zeros_like(img2)
+        pixels1 = np.argwhere(img1<=pix_thresh)
+        disps = np.zeros(pixels1.shape[0])
+        reliab = np.zeros(pixels1.shape[0])
+        affins = np.zeros_like(img1)
+        to_r = 1e5 #prevent floating-point cut-off
+        # neighs = np.array([np.argwhere(
+        #     img1[pix[0]-1:pix[0]+2, pix[1]-1:pix[1]+2]<=pix_thresh
+        # ) for pix in pixels1])
+
         for i in range(pixels1.shape[0]):
             pix1 = (pixels1[i][0], pixels1[i][1])
-            energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(min_disp, max_disp)])
+            energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
             
-            disp = np.argmin(energy) + min_disp
-            if disp == 0:
-                continue
+            best_reward = np.min(energy)#to_r/(np.min(energy) + 1e-7)
+            disp = np.argmin(energy)
+            energy = np.delete(energy, disp)
+            next_best = np.min(energy)#to_r/(np.min(energy) + 1e-7)
             
-            disps[pix1] = disp
-            prev_disp = disp
+            disps[i] = disp
+            reliab[i] = np.tanh((next_best - best_reward)/(best_reward + 1e-7))#(best_reward - next_best) / best_reward
 
+            roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2]
+            # ignore current pixel
+            roi[1, 1] = pix_thresh+1
+            neighs = np.argwhere(roi<=pix_thresh) + np.expand_dims(pixels1[i], 0) - 1
+            valn = np.array([img1[pixn[0], pixn[1]] for pixn in neighs])
+            if neighs.size == 0:
+                continue
+            varn = np.var(valn)
+            curr_affins = np.exp(np.clip(-1*(img1[pix1] - valn)**2 / (2*varn + 1e-7), -87, None))
+            curr_affins /= np.sum(curr_affins) + 1e-7
+            for i, pixn in enumerate(neighs):
+                affins[pixn[0], pixn[1]] = curr_affins[i]
+        
+
+        disp_map = np.zeros_like(img1)
+        disp_map[pixels1[:, 0], pixels1[:, 1]] = disps
+        reliab_map = np.zeros_like(img1)
+        reliab_map[pixels1[:, 0], pixels1[:, 1]] = reliab
         img2rgb = cv2.cvtColor(img2,cv2.COLOR_GRAY2RGB)
         for i in range(pixels1.shape[0]):
             pix1 = (pixels1[i][0], pixels1[i][1])
-            if disps[pix1]:
-                img2rgb[pix1[0], int(pix1[1] - disps[pix1]), 0] -= 60
-                img2rgb[pix1[0], int(pix1[1] - disps[pix1]), 2] -= 60
+            if disp_map[pix1]:
+                img2rgb[pix1[0], int(pix1[1] - disp_map[pix1]), 0] -= 60
+                img2rgb[pix1[0], int(pix1[1] - disp_map[pix1]), 2] -= 60
         img2rgb = np.uint8(np.clip(img2rgb, 0, 255))
         plt.imshow(img2rgb)
         plt.figure(2)
-        heatmap = plt.pcolor(disps)
+        heatmap = plt.pcolor(disp_map)
         plt.colorbar(heatmap)
+        plt.gca().invert_yaxis()
+        plt.figure(3)
+        heatmap_r = plt.pcolor(reliab_map)
+        plt.colorbar(heatmap_r)
         plt.gca().invert_yaxis()
         plt.show()
             
