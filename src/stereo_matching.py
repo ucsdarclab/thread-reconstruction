@@ -107,9 +107,10 @@ def stereo_match():
         num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
 
         pixels1 = np.argwhere(img1<=pix_thresh)
+        pix_to_idx = {(int(pix[0]), int(pix[1])):i for i, pix in enumerate(pixels1)}
         disps = np.zeros(pixels1.shape[0])
         reliab = np.zeros(pixels1.shape[0])
-        affins = np.zeros_like(img1)
+        affins = np.zeros((pixels1.shape[0], 9))
 
         # to_r = 1e5 #prevent floating-point cut-off
         rad = 2
@@ -138,24 +139,40 @@ def stereo_match():
             x = (next_best - best)/((best + 1e-7)*c_data)
             reliab[i] = 1/(1+np.exp(-1*c_slope*(x-c_shift)))
 
-            roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2]
-            # # ignore current pixel
-            # roi[1, 1] = pix_thresh+1
-            # neighs = np.argwhere(roi<=pix_thresh) + np.expand_dims(pixels1[i], 0) - 1
-            # valn = np.array([img1[pixn[0], pixn[1]] for pixn in neighs])
-            # if neighs.size == 0:
-            #     continue
-            # varn = np.var(valn)
-            # curr_affins = np.exp(np.clip(-1*(img1[pix1] - valn)**2 / (2*varn + 1e-7), -87, None))
-            # curr_affins /= np.sum(curr_affins) + 1e-7
-            # for i, pixn in enumerate(neighs):
-            #     affins[pixn[0], pixn[1]] = curr_affins[i]
+            roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2].copy()
+            # ignore current pixel
+            roi[1, 1] = pix_thresh+1
+            neighs = np.argwhere(roi<=pix_thresh) + np.expand_dims(pixels1[i], 0) - 1
+            valn = np.array([img1[pixn[0], pixn[1]] for pixn in neighs])
+            if neighs.size == 0:
+                continue
+            varn = np.var(valn)
+            curr_affins = np.exp(np.clip(-1*(img1[pix1] - valn)**2 / (2*varn + 1e-7), -87, None))
+            curr_affins /= np.sum(curr_affins) + 1e-7
+            for j, pixn in enumerate(neighs):
+                idx = 3*(pixn[0]-pix1[0]+1) + pixn[1]-pix1[1]+1
+                affins[i, idx] = curr_affins[j]
         
-
+        # Perform laplacian propagation
+        F_hat = disps
+        P = np.diag(reliab)
+        W = np.zeros_like(P)
+        for i, pix in enumerate(pixels1):
+            for j, affin in enumerate(affins[i]):
+                if affin > 1e-7:
+                    r = j//3 + pix[0] - 1
+                    c = j%3 + pix[1] - 1
+                    idx = pix_to_idx[(r, c)]
+                    W[i, idx] = affin
+        F = np.linalg.solve(
+            P + np.eye(len(pixels1)) - W,
+            np.matmul(P, F_hat)
+        )
+        
         disp_map = np.zeros_like(img1)
-        disp_map[pixels1[:, 0], pixels1[:, 1]] = disps
-        reliab_map = np.zeros_like(img1)
-        reliab_map[pixels1[:, 0], pixels1[:, 1]] = reliab
+        disp_map[pixels1[:, 0], pixels1[:, 1]] = F#disps
+        # reliab_map = np.zeros_like(img1)
+        # reliab_map[pixels1[:, 0], pixels1[:, 1]] = reliab
         img2rgb = cv2.cvtColor(img2,cv2.COLOR_GRAY2RGB)
         for i in range(pixels1.shape[0]):
             pix1 = (pixels1[i][0], pixels1[i][1])
@@ -168,10 +185,10 @@ def stereo_match():
         heatmap = plt.pcolor(disp_map)
         plt.colorbar(heatmap)
         plt.gca().invert_yaxis()
-        plt.figure(3)
-        heatmap_r = plt.pcolor(reliab_map)
-        plt.colorbar(heatmap_r)
-        plt.gca().invert_yaxis()
+        # plt.figure(3)
+        # heatmap_r = plt.pcolor(reliab_map)
+        # plt.colorbar(heatmap_r)
+        # plt.gca().invert_yaxis()
         plt.show()
             
 
