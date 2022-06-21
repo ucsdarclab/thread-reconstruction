@@ -119,13 +119,13 @@ def stereo_match():
             pix1 = (pixels1[i][0], pixels1[i][1])
             energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
             
-            best_reward = np.min(energy)#to_r/(np.min(energy) + 1e-7)
+            best = np.min(energy)#to_r/(np.min(energy) + 1e-7)
             disp = np.argmin(energy)
-            energy = np.delete(energy, disp)
-            next_best = np.min(energy)#to_r/(np.min(energy) + 1e-7)
+            energy2 = np.delete(energy, disp)
+            next_best = np.min(energy2)#to_r/(np.min(energy) + 1e-7)
             
             disps[i] = disp
-            reliab[i] = np.tanh((next_best - best_reward)/(best_reward + 1e-7))#(best_reward - next_best) / best_reward
+            reliab[i] = np.tanh((next_best - best)/(best + 1e-7)/10)#(best_reward - next_best) / best_reward
 
             roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2]
             # ignore current pixel
