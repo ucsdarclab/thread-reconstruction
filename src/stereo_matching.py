@@ -110,35 +110,43 @@ def stereo_match():
         disps = np.zeros(pixels1.shape[0])
         reliab = np.zeros(pixels1.shape[0])
         affins = np.zeros_like(img1)
-        to_r = 1e5 #prevent floating-point cut-off
-        # neighs = np.array([np.argwhere(
-        #     img1[pix[0]-1:pix[0]+2, pix[1]-1:pix[1]+2]<=pix_thresh
-        # ) for pix in pixels1])
 
+        # to_r = 1e5 #prevent floating-point cut-off
+        rad = 2
+        c1 = 5
+        # TODO deal with out-of-bounds conditions
         for i in range(pixels1.shape[0]):
             pix1 = (pixels1[i][0], pixels1[i][1])
-            energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
+            chunk = img1[pix1[0]-rad:pix1[0]+rad+1, pix1[1]-rad:pix1[1]+rad+1]
+            seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(pixels1[i], 0) - rad
+
+            # energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
+            energy = np.array([
+                np.sum(
+                    (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2
+                ) for off in range(max_disp)
+            ])
             
             best = np.min(energy)#to_r/(np.min(energy) + 1e-7)
             disp = np.argmin(energy)
-            energy2 = np.delete(energy, disp)
+            energy2 = np.delete(energy, slice(disp-1, disp+2))
             next_best = np.min(energy2)#to_r/(np.min(energy) + 1e-7)
             
             disps[i] = disp
-            reliab[i] = np.tanh((next_best - best)/(best + 1e-7)/10)#(best_reward - next_best) / best_reward
+            reliab[i] = np.tanh((next_best - best)/(best + 1e-7)/c1)#(best_reward - next_best) / best_reward
 
             roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2]
-            # ignore current pixel
-            roi[1, 1] = pix_thresh+1
-            neighs = np.argwhere(roi<=pix_thresh) + np.expand_dims(pixels1[i], 0) - 1
-            valn = np.array([img1[pixn[0], pixn[1]] for pixn in neighs])
-            if neighs.size == 0:
-                continue
-            varn = np.var(valn)
-            curr_affins = np.exp(np.clip(-1*(img1[pix1] - valn)**2 / (2*varn + 1e-7), -87, None))
-            curr_affins /= np.sum(curr_affins) + 1e-7
-            for i, pixn in enumerate(neighs):
-                affins[pixn[0], pixn[1]] = curr_affins[i]
+            # # ignore current pixel
+            # roi[1, 1] = pix_thresh+1
+            # neighs = np.argwhere(roi<=pix_thresh) + np.expand_dims(pixels1[i], 0) - 1
+            # valn = np.array([img1[pixn[0], pixn[1]] for pixn in neighs])
+            # if neighs.size == 0:
+            #     continue
+            # varn = np.var(valn)
+            # curr_affins = np.exp(np.clip(-1*(img1[pix1] - valn)**2 / (2*varn + 1e-7), -87, None))
+            # curr_affins /= np.sum(curr_affins) + 1e-7
+            # for i, pixn in enumerate(neighs):
+            #     affins[pixn[0], pixn[1]] = curr_affins[i]
         
 
         disp_map = np.zeros_like(img1)
