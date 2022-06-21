@@ -113,7 +113,9 @@ def stereo_match():
 
         # to_r = 1e5 #prevent floating-point cut-off
         rad = 2
-        c1 = 5
+        c_data = 5
+        c_slope = 8
+        c_shift = 0.8
         # TODO deal with out-of-bounds conditions
         for i in range(pixels1.shape[0]):
             pix1 = (pixels1[i][0], pixels1[i][1])
@@ -133,7 +135,8 @@ def stereo_match():
             next_best = np.min(energy2)#to_r/(np.min(energy) + 1e-7)
             
             disps[i] = disp
-            reliab[i] = np.tanh((next_best - best)/(best + 1e-7)/c1)#(best_reward - next_best) / best_reward
+            x = (next_best - best)/((best + 1e-7)*c_data)
+            reliab[i] = 1/(1+np.exp(-1*c_slope*(x-c_shift)))
 
             roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2]
             # # ignore current pixel
