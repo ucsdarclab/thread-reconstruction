@@ -6,8 +6,8 @@ import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
 from pixel_ordering import order_pixels
 
-OPENCV_MATCHING = False
-TESTING = True
+OPENCV_MATCHING = True
+TESTING = False
 
 def stereo_match():
     # Get normal and segmented images
@@ -62,9 +62,9 @@ def stereo_match():
             # speckleWindowSize=100,
             # speckleRange=10
         )
-        disp = sgbm.compute(img1, img2)
-        disp = np.float32(disp) / 16.0
-        img_3D = cv2.reprojectImageTo3D(disp, Q)
+        disp_cv = sgbm.compute(img1, img2)
+        disp_cv = np.float32(disp_cv) / 16.0
+        img_3D = cv2.reprojectImageTo3D(disp_cv, Q)
         ordering, _ = order_pixels()
         points_3D = img_3D[ordering[1], ordering[0]]#np.stack([
         #     ordering[1],
@@ -96,8 +96,8 @@ def stereo_match():
                 img_3D[ordering[1], ordering[0], 2]
             )
             plt.show()
-        return P1, P2, points_3D
-    else:
+        # return P1, P2, points_3D #TODO Add this back
+    if True: # TODO remove
         img1 = np.float32(img1)
         img2 = np.float32(img2)
         thresh = 40
@@ -189,6 +189,28 @@ def stereo_match():
         # heatmap_r = plt.pcolor(reliab_map)
         # plt.colorbar(heatmap_r)
         # plt.gca().invert_yaxis()
+        # plt.figure(3)
+        # ax = plt.axes(projection='3d')
+        # ax.view_init(0, 0)
+        # ax.set_zlim(0, 1000)
+        # ax.scatter(
+        #     pixels1[:, 0],
+        #     pixels1[:, 1],
+        #     num/F
+        # )
+        # ax.scatter(
+        #     pixels1[:, 0],
+        #     pixels1[:, 1],
+        #     img_3D[pixels1[:, 0], pixels1[:, 1], 2],
+        #     c="r"
+        # )
+        plt.figure(3)
+        disp_cv_map = np.zeros_like(disp_cv)
+        disp_cv_map[pixels1[:, 0], pixels1[:, 1]] += disp_cv[pixels1[:, 0], pixels1[:, 1]]
+        diff = disp_map - disp_cv_map
+        heatmap = plt.pcolor(diff, vmin=-5, vmax=5)
+        plt.colorbar(heatmap)
+        plt.gca().invert_yaxis()
         plt.show()
             
 
