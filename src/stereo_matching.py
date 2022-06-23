@@ -9,6 +9,112 @@ from pixel_ordering import order_pixels
 OPENCV_MATCHING = True
 TESTING = False
 
+gt = np.array([
+    [259, 337, 314],
+    [256, 327, 304],
+    [256, 319, 296],
+    [259, 312, 289],
+    [263, 305, 282],
+    [270, 299, 275.5],
+    [277, 296, 272],
+    [288, 294, 270],
+    [298, 296, 272],
+    [310, 304, 279],
+    [318, 311, 286],
+    [326, 321, 296],
+    [331, 329, 303.5],
+    [336, 340, 314],
+    [340, 352, 325],
+    [341, 357, 331],
+    [342, 362, 333.5],
+    [342, 369, 342.5],
+    [341, 373, 345],
+    [342, 387, 363],
+    [341, 392, 366.5],
+    [339, 404, 378.5],
+    [334, 422, 396],
+    [328, 434, 408],
+    [319, 445, 418.5],
+    [314, 449, 422],
+    [305, 455, 428],
+    [296, 459, 432.5],
+    [278, 464, 437.5],
+    [267, 465, 439],
+    [251, 465, 440],
+    [234, 463, 437.5],
+    [224, 461, 436],
+    [212, 457, 432],
+    [207, 455, 430.5],
+    [198, 451, 427],
+    [187, 445, 421],
+    [177, 438, 414.5],
+    [168, 430, 407],
+    [160, 421, 399],
+    [155, 415, 393],
+    [148, 406, 384],
+    [142, 399, 377],
+    [133, 388, 366.5],
+    [129, 381, 360],
+    [127, 375, 355.5],
+    [122, 357, 338],
+    [117, 343, 323.5],
+    [113, 334, 314],
+    [110, 327, 307.5],
+    [105, 316, 297],
+    [101, 307, 288],
+    [96, 294, 276],
+    [93, 283, 264],
+    [91, 276, 258],
+    [89, 265, 248],
+    [88, 258, 242],
+    [89, 251, 229.5],
+    [88, 240, 214],
+    [91, 230, 208.5],
+    [100, 220, 198.5],
+    [106, 215, 193],
+    [115, 209, 187],
+    [122, 205, 184],
+    [131, 200, 178.5],
+    [138, 196, 174],
+    [149, 191, 169],
+    [157, 188, 166],
+    [165, 185, 163.5],
+    [174, 183, 161],
+    [183, 181, 159],
+    [190, 179, 157],
+    [199, 177, 154.5],
+    [212, 173, 150],
+    [223, 170, 147],
+    [231, 168, 145],
+    [242, 166, 143],
+    [249, 165, 142],
+    [259, 163, 140],
+    [269, 161, 138],
+    [279, 159, 135],
+    [289, 156, 132],
+    [299, 153, 129],
+    [315, 148, 124],
+    [332, 143, 118.5],
+    [345, 139, 114],
+    [358, 135, 110],
+    [365, 133, 107.5],
+    [375, 129, 103.5],
+    [381, 127, 101],
+    [390, 124, 98],
+    [396, 123, 96.5],
+    [400, 123, 96],
+    [404, 124, 97],
+    [403, 128, 101],
+    [399, 131, 104.5],
+    [393, 134, 107.5],
+    [387, 136, 109.5],
+    [382, 137, 110],
+    [379, 137, 110],
+    [376, 134, 108],
+    [372, 134, 108],
+    [369, 132, 106]
+])
+
 def stereo_match():
     # Get normal and segmented images
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
@@ -44,10 +150,12 @@ def stereo_match():
 
     img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
     img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
+    # TODO Remove
     # plt.imshow(img1, cmap="gray")
-    # plt.show()
+    # plt.figure(2)
     # plt.imshow(img2, cmap="gray")
     # plt.show()
+    # return
 
     if OPENCV_MATCHING:
         sgbm_win_size = 5
@@ -185,32 +293,52 @@ def stereo_match():
         heatmap = plt.pcolor(disp_map)
         plt.colorbar(heatmap)
         plt.gca().invert_yaxis()
+        # RELIABILITY
         # plt.figure(3)
         # heatmap_r = plt.pcolor(reliab_map)
         # plt.colorbar(heatmap_r)
         # plt.gca().invert_yaxis()
-        # plt.figure(3)
-        # ax = plt.axes(projection='3d')
-        # ax.view_init(0, 0)
-        # ax.set_zlim(0, 1000)
-        # ax.scatter(
-        #     pixels1[:, 0],
-        #     pixels1[:, 1],
-        #     num/F
-        # )
-        # ax.scatter(
-        #     pixels1[:, 0],
-        #     pixels1[:, 1],
-        #     img_3D[pixels1[:, 0], pixels1[:, 1], 2],
-        #     c="r"
-        # )
         plt.figure(3)
-        disp_cv_map = np.zeros_like(disp_cv)
-        disp_cv_map[pixels1[:, 0], pixels1[:, 1]] += disp_cv[pixels1[:, 0], pixels1[:, 1]]
-        diff = disp_map - disp_cv_map
-        heatmap = plt.pcolor(diff, vmin=-5, vmax=5)
-        plt.colorbar(heatmap)
-        plt.gca().invert_yaxis()
+        ax = plt.axes(projection='3d')
+        ax.view_init(0, 0)
+        ax.set_zlim(0, 1000)
+        depth = np.matmul(
+            Q,
+            np.stack((pixels1[:, 0], pixels1[:, 1], F, np.ones_like(F)))
+        )
+        depth /= np.expand_dims(depth[3].copy(), 0)
+        # ax.scatter(
+        #     pixels1[:, 0],
+        #     pixels1[:, 1],
+        #     depth[2],
+        #     s=1
+        # )
+        ax.scatter(
+            pixels1[:, 0],
+            pixels1[:, 1],
+            img_3D[pixels1[:, 0], pixels1[:, 1], 2],
+            c="r",
+            s=1
+        )
+        gt_depth = np.matmul(
+            Q,
+            np.stack((gt[:, 0], gt[:, 1], gt[:, 1]-gt[:, 2], np.ones_like(gt[:, 0])))
+        )
+        gt_depth /= np.expand_dims(gt_depth[3].copy(), 0)
+        ax.scatter(
+            gt[:, 0],
+            gt[:, 1],
+            gt_depth[2],
+            c="g"
+        )
+        # DIFFERENCES
+        # plt.figure(3)
+        # disp_cv_map = np.zeros_like(disp_cv)
+        # disp_cv_map[pixels1[:, 0], pixels1[:, 1]] += disp_cv[pixels1[:, 0], pixels1[:, 1]]
+        # diff = disp_map - disp_cv_map
+        # heatmap = plt.pcolor(diff, vmin=-5, vmax=5)
+        # plt.colorbar(heatmap)
+        # plt.gca().invert_yaxis()
         plt.show()
             
 
