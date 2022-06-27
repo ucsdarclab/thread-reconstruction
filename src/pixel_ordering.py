@@ -26,7 +26,7 @@ def order_pixels():
     img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     img_r_init = img_r.copy()
-    thresh = 210
+    thresh = 220
     upsilon = 10
     roi = []
     for i in range(-upsilon, upsilon+1):
@@ -48,42 +48,42 @@ def order_pixels():
     # exit(0)
     
     
-    curr_V_l = (259, 336)
-    par_V_l = (259, 337)
-    curr_V_r = (259, 313)
-    par_V_r = (259, 314)
+    curr_V = (259, 336)
+    par_V = (259, 337)
+    # curr_V_r = (259, 313)
+    # par_V_r = (259, 314)
 
-    curve_set_l = np.zeros_like(img_l)
-    curve_set_l[curr_V_l] = 1
-    curve_set_l[par_V_l] = 1
+    curve_set = np.zeros_like(img_l)
+    curve_set[curr_V] = 1
+    curve_set[par_V] = 1
 
-    curve_set_r = np.zeros_like(img_r)
-    curve_set_r[curr_V_r] = 1
-    curve_set_r[par_V_r] = 1
+    # curve_set_r = np.zeros_like(img_r)
+    # curve_set_r[curr_V_r] = 1
+    # curve_set_r[par_V_r] = 1
 
     curve_l = np.array([
-        [par_V_l[1], curr_V_l[1]],
-        [par_V_l[0], curr_V_l[0]]
+        [par_V[1], curr_V[1]],
+        [par_V[0], curr_V[0]]
     ])
-    curve_r = np.array([
-        [par_V_r[1], curr_V_r[1]],
-        [par_V_r[0], curr_V_r[0]]
-    ])
+    # curve_r = np.array([
+    #     [par_V_r[1], curr_V_r[1]],
+    #     [par_V_r[0], curr_V_r[0]]
+    # ])
 
     # Pixel ordering setup
-    active_l = []
-    active_r = []
+    active = []
+    # active_r = []
     for i, j in roi:
-        node_l = (i+curr_V_l[0], j+curr_V_l[1])
-        node_r = (i+curr_V_r[0], j+curr_V_r[1])
-        if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
-            (not curve_set_l[node_l]) and (img_l[node_l] <= thresh)
+        node = (i+curr_V[0], j+curr_V[1])
+        # node_r = (i+curr_V_r[0], j+curr_V_r[1])
+        if ((node[0] < img_l.shape[0]) and (node[1] < img_l.shape[1]) and
+            (not curve_set[node]) and (img_l[node] <= thresh)
             ):
-            active_l.append(node_l)
-        if ((node_r[0] < img_r.shape[0]) and (node_r[1] < img_r.shape[1]) and
-            (not curve_set_r[node_r]) and (img_r[node_r] <= thresh)
-            ):
-            active_r.append(node_r)
+            active.append(node)
+        # if ((node_r[0] < img_r.shape[0]) and (node_r[1] < img_r.shape[1]) and
+        #     (not curve_set_r[node_r]) and (img_r[node_r] <= thresh)
+        #     ):
+        #     active_r.append(node_r)
     
     # Order pixels and stereo match
     e_1 = 2
@@ -95,94 +95,94 @@ def order_pixels():
     tau_V = 2*math.pi/3
     max_chunksize = 5
     sum_thresh = 7
-    while len(active_l):
+    while len(active):
         # calculate min cost active node
-        min_cost_l = np.Inf
-        min_node_l = None
+        min_cost = np.Inf
+        min_node = None
         glob_step = 0
-        for prow_l, pcol_l in active_l:
+        for prow, pcol in active:
             # Aggregate into chunks, growing in direction of parent
-            row_dir_l = np.sign(curr_V_l[0] - prow_l)
-            col_dir_l = np.sign(curr_V_l[1] - pcol_l)
+            row_dir = np.sign(curr_V[0] - prow)
+            col_dir = np.sign(curr_V[1] - pcol)
             for step in range(1, max_chunksize):
-                row_slice_l = slice(prow_l, prow_l+step+1) if row_dir_l > 0 else slice(prow_l-step, prow_l+1)
-                col_slice_l = slice(pcol_l, pcol_l+step+1) if col_dir_l > 0 else slice(pcol_l-step, pcol_l+1)
-                if (img_l[row_slice_l, col_slice_l] > thresh).any() \
-                    or (curve_set_l[row_slice_l, col_slice_l]).any():
+                row_slice = slice(prow, prow+step+1) if row_dir > 0 else slice(prow-step, prow+1)
+                col_slice = slice(pcol, pcol+step+1) if col_dir > 0 else slice(pcol-step, pcol+1)
+                if (img_l[row_slice, col_slice] > thresh).any() \
+                    or (curve_set[row_slice, col_slice]).any():
                     break
             
             # Prevent doubling back
-            if step == 1 and np.sum(curve_set_l[prow_l-2:prow_l+3, pcol_l-2:pcol_l+3]) > sum_thresh:
+            if step == 1 and np.sum(curve_set[prow-2:prow+3, pcol-2:pcol+3]) > sum_thresh:
                 continue
             
             # Calculate triangle area terms
-            to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
-            to_prev_l = np.array([curr_V_l[0], curr_V_l[1]]) - np.array([par_V_l[0], par_V_l[1]])
-            angle_l = np.arccos(np.clip(
-                np.dot(to_active_l, to_prev_l) /
-                (np.linalg.norm(to_active_l) * np.linalg.norm(to_prev_l)),
+            to_active = np.array([prow, pcol]) - np.array([curr_V[0], curr_V[1]])
+            to_prev = np.array([curr_V[0], curr_V[1]]) - np.array([par_V[0], par_V[1]])
+            angle = np.arccos(np.clip(
+                np.dot(to_active, to_prev) /
+                (np.linalg.norm(to_active) * np.linalg.norm(to_prev)),
                 -1,
                 1
             ))
             # Compare with terminating threshold
-            if (angle_l >= tau_V):
+            if (angle >= tau_V):
                 continue
             
             # calculate out of range number
-            o_pixels_l = set()
-            delta_row_l = prow_l - curr_V_l[0]
-            delta_col_l = pcol_l - curr_V_l[1]
-            for i in range(abs(delta_row_l)):
-                sign = 1 if delta_row_l > 0 else -1
-                drow_l = (0.5 + i) * sign
-                dcol_l = delta_col_l/delta_row_l * drow_l
-                pixel1_l = (curr_V_l[0] + i*sign, round(curr_V_l[1] + dcol_l))
-                pixel2_l = (pixel1_l[0] + 1*sign, pixel1_l[1])
-                if img_l[pixel1_l] > thresh:
-                    o_pixels_l.add(pixel1_l)
-                if img_l[pixel2_l] > thresh:
-                    o_pixels_l.add(pixel2_l)
+            o_pixels = set()
+            delta_row = prow - curr_V[0]
+            delta_col = pcol - curr_V[1]
+            for i in range(abs(delta_row)):
+                sign = 1 if delta_row > 0 else -1
+                drow = (0.5 + i) * sign
+                dcol = delta_col/delta_row * drow
+                pixel1 = (curr_V[0] + i*sign, round(curr_V[1] + dcol))
+                pixel2 = (pixel1[0] + 1*sign, pixel1[1])
+                if img_l[pixel1] > thresh:
+                    o_pixels.add(pixel1)
+                if img_l[pixel2] > thresh:
+                    o_pixels.add(pixel2)
 
-            for i in range(abs(delta_col_l)):
-                sign = 1 if delta_col_l > 0 else -1
-                dcol_l = (0.5 + i) * sign
-                drow_l = delta_row_l/delta_col_l * dcol_l
-                pixel1_l = (round(curr_V_l[0] + drow_l), curr_V_l[1] + i*sign)
-                pixel2_l = (pixel1_l[0], pixel1_l[1] + 1*sign)
-                if img_l[pixel1_l] > thresh:
-                    o_pixels_l.add(pixel1_l)
-                if img_l[pixel2_l] > thresh:
-                    o_pixels_l.add(pixel2_l)
+            for i in range(abs(delta_col)):
+                sign = 1 if delta_col > 0 else -1
+                dcol = (0.5 + i) * sign
+                drow = delta_row/delta_col * dcol
+                pixel1 = (round(curr_V[0] + drow), curr_V[1] + i*sign)
+                pixel2 = (pixel1[0], pixel1[1] + 1*sign)
+                if img_l[pixel1] > thresh:
+                    o_pixels.add(pixel1)
+                if img_l[pixel2] > thresh:
+                    o_pixels.add(pixel2)
             
-            O_num_l = len(o_pixels_l)
+            O_num = len(o_pixels)
             # Compare with terminating threshold
-            if (O_num_l >= tau_O):
+            if (O_num >= tau_O):
                 continue
 
             # Calculate node cost and compare to min cost
-            cost_l = (
-                math.log(e_1*O_num_l + 1) + 
-                e_2 * np.linalg.norm(to_active_l) *
-                np.exp(e_3 * np.sin(angle_l/2))
+            cost = (
+                math.log(e_1*O_num + 1) + 
+                e_2 * np.linalg.norm(to_active) *
+                np.exp(e_3 * np.sin(angle/2))
             )/(e_4 * step)**2
-            if (cost_l < min_cost_l):
-                min_cost_l = cost_l
-                min_node_l = (prow_l, pcol_l)
+            if (cost < min_cost):
+                min_cost = cost
+                min_node = (prow, pcol)
                 glob_step = step
-            # elif (cost_l == min_cost_l):
-            #     min_nodes_l.append((prow_l, pcol_l))
+            # elif (cost == min_cost):
+            #     min_nodes.append((prow, pcol))
         
         # Terminate if conditions all tripped
-        if (min_node_l is None):
+        if (min_node is None):
             break
-        prow_l, pcol_l = min_node_l
-        row_dir_l = np.sign(curr_V_l[0] - prow_l)
-        col_dir_l = np.sign(curr_V_l[1] - pcol_l)
-        row_range_l = range(prow_l, prow_l+glob_step) if row_dir_l > 0 else range(prow_l-glob_step+1, prow_l+1)
-        col_range_l = range(pcol_l, pcol_l+glob_step) if col_dir_l > 0 else range(pcol_l-glob_step+1, pcol_l+1)
-        for r in row_range_l:
-            for c in col_range_l:
-                curve_set_l[r, c] = 1
+        prow, pcol = min_node
+        row_dir = np.sign(curr_V[0] - prow)
+        col_dir = np.sign(curr_V[1] - pcol)
+        row_range = range(prow, prow+glob_step) if row_dir > 0 else range(prow-glob_step+1, prow+1)
+        col_range = range(pcol, pcol+glob_step) if col_dir > 0 else range(pcol-glob_step+1, pcol+1)
+        for r in row_range:
+            for c in col_range:
+                curve_set[r, c] = 1
                 curve_l = np.concatenate(
                     (
                         curve_l,
@@ -192,17 +192,35 @@ def order_pixels():
                 )
 
         # Update active nodes and curve nodes
-        par_V_l = curr_V_l
-        curr_V_l = min_node_l #min_nodes_l[random.randrange(0, len(min_nodes_l))]
-        active_l = []
+        par_V = curr_V
+        curr_V = min_node #min_nodes[random.randrange(0, len(min_nodes))]
+        active = []
         for i, j in roi:
-            node_l = (i+curr_V_l[0], j+curr_V_l[1])
-            if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
-                (not curve_set_l[node_l]) and (img_l[node_l] <= thresh)
+            node = (i+curr_V[0], j+curr_V[1])
+            if ((node[0] < img_l.shape[0]) and (node[1] < img_l.shape[1]) and
+                (not curve_set[node]) and (img_l[node] <= thresh)
                 ):
-                active_l.append(node_l)
+                active.append(node)
 
     #TODO update this loop
+    curr_V_r = (259, 313)
+    par_V_r = (259, 314)
+
+    curve_set_r = np.zeros_like(img_r)
+    curve_set_r[curr_V_r] = 1
+    curve_set_r[par_V_r] = 1
+    curve_r = np.array([
+        [par_V_r[1], curr_V_r[1]],
+        [par_V_r[0], curr_V_r[0]]
+    ])
+
+    active_r = []
+    for i, j in roi:
+        node_r = (i+curr_V_r[0], j+curr_V_r[1])
+        if ((node_r[0] < img_r.shape[0]) and (node_r[1] < img_r.shape[1]) and
+            (not curve_set_r[node_r]) and (img_r[node_r] <= thresh)
+            ):
+            active_r.append(node_r)
     while False and len(active_r):
         # calculate min cost active node
         min_cost_r = np.Inf
