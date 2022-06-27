@@ -34,13 +34,13 @@ def order_pixels():
             if i**2 + j**2 <= upsilon**2:
                 roi.append((i,j))
     
-    dilate_kernel = np.ones((5, 5), np.uint8)
-    erode_kernel = np.ones((2, 2), np.uint8)
+    # dilate_kernel = np.ones((5, 5), np.uint8)
+    # erode_kernel = np.ones((2, 2), np.uint8)
     #img_l_dilated = cv2.dilate(np.where(img_l <= thresh, 1, 0).astype("uint8"), dilate_kernel, iterations=2)
-    img_l *= cv2.erode(np.where(img_l <= thresh, 1, 0).astype("uint8"), erode_kernel, iterations=1)
-    img_l =np.where(img_l == 0, 255, img_l)
-    img_r *= cv2.erode(np.where(img_r <= thresh, 1, 0).astype("uint8"), erode_kernel, iterations=1)
-    img_r =np.where(img_r == 0, 255, img_r)
+    # img_l *= cv2.erode(np.where(img_l <= thresh, 1, 0).astype("uint8"), erode_kernel, iterations=1)
+    # img_l =np.where(img_l == 0, 255, img_l)
+    # img_r *= cv2.erode(np.where(img_r <= thresh, 1, 0).astype("uint8"), erode_kernel, iterations=1)
+    # img_r =np.where(img_r == 0, 255, img_r)
     # cv2.imshow("img", img_l)
     # cv2.waitKey(5000)
     # plt.imshow(img_l)
@@ -52,8 +52,15 @@ def order_pixels():
     par_V_l = (259, 337)
     curr_V_r = (259, 313)
     par_V_r = (259, 314)
-    curve_set_l = {curr_V_l, par_V_l}
-    curve_set_r = {curr_V_r, par_V_r}
+
+    curve_set_l = np.zeros_like(img_l)
+    curve_set_l[curr_V_l] = 1
+    curve_set_l[par_V_l] = 1
+
+    curve_set_r = np.zeros_like(img_r)
+    curve_set_r[curr_V_r] = 1
+    curve_set_r[par_V_r] = 1
+
     curve_l = np.array([
         [par_V_l[1], curr_V_l[1]],
         [par_V_l[0], curr_V_l[0]]
@@ -70,26 +77,44 @@ def order_pixels():
         node_l = (i+curr_V_l[0], j+curr_V_l[1])
         node_r = (i+curr_V_r[0], j+curr_V_r[1])
         if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
-            (node_l not in curve_set_l) and (img_l[node_l] <= thresh)
+            (not curve_set_l[node_l]) and (img_l[node_l] <= thresh)
             ):
             active_l.append(node_l)
         if ((node_r[0] < img_r.shape[0]) and (node_r[1] < img_r.shape[1]) and
-            (node_r not in curve_set_r) and (img_r[node_r] <= thresh)
+            (not curve_set_r[node_r]) and (img_r[node_r] <= thresh)
             ):
             active_r.append(node_r)
     
     # Order pixels and stereo match
-    e_1 = 1
-    e_2 = 0.1
-    e_3 = 1.2
+    e_1 = 2
+    e_2 = 0.3
+    e_3 = 0.07
+    e_4 = 1
     mu = 1
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
+    max_chunksize = 5
+    sum_thresh = 7
     while len(active_l):
         # calculate min cost active node
         min_cost_l = np.Inf
-        min_nodes_l = []
+        min_node_l = None
+        glob_step = 0
         for prow_l, pcol_l in active_l:
+            # Aggregate into chunks, growing in direction of parent
+            row_dir_l = np.sign(curr_V_l[0] - prow_l)
+            col_dir_l = np.sign(curr_V_l[1] - pcol_l)
+            for step in range(1, max_chunksize):
+                row_slice_l = slice(prow_l, prow_l+step+1) if row_dir_l > 0 else slice(prow_l-step, prow_l+1)
+                col_slice_l = slice(pcol_l, pcol_l+step+1) if col_dir_l > 0 else slice(pcol_l-step, pcol_l+1)
+                if (img_l[row_slice_l, col_slice_l] > thresh).any() \
+                    or (curve_set_l[row_slice_l, col_slice_l]).any():
+                    break
+            
+            # Prevent doubling back
+            if step == 1 and np.sum(curve_set_l[prow_l-2:prow_l+3, pcol_l-2:pcol_l+3]) > sum_thresh:
+                continue
+            
             # Calculate triangle area terms
             to_active_l = np.array([prow_l, pcol_l]) - np.array([curr_V_l[0], curr_V_l[1]])
             to_prev_l = np.array([curr_V_l[0], curr_V_l[1]]) - np.array([par_V_l[0], par_V_l[1]])
@@ -137,29 +162,34 @@ def order_pixels():
             # Calculate node cost and compare to min cost
             cost_l = (
                 math.log(e_1*O_num_l + 1) + 
-                e_2 * np.linalg.norm(to_active_l) +
+                e_2 * np.linalg.norm(to_active_l) *
                 np.exp(e_3 * np.sin(angle_l/2))
-            )
+            )/(e_4 * step)**2
             if (cost_l < min_cost_l):
                 min_cost_l = cost_l
-                min_nodes_l = [(prow_l, pcol_l)]
-            elif (cost_l == min_cost_l):
-                min_nodes_l.append((prow_l, pcol_l))
+                min_node_l = (prow_l, pcol_l)
+                glob_step = step
+            # elif (cost_l == min_cost_l):
+            #     min_nodes_l.append((prow_l, pcol_l))
         
         # Terminate if conditions all tripped
-        if (len(min_nodes_l) == 0):
+        if (min_node_l is None):
             break
-        # Add selected node to curve
-        min_node_l = min_nodes_l[random.randrange(0, len(min_nodes_l))]
-        #for min_node_l in min_nodes_l:
-        curve_set_l.add(min_node_l)
-        curve_l = np.concatenate(
-            (
-                curve_l,
-                np.array([[min_node_l[1]], [min_node_l[0]]])
-            ),
-            axis=1
-        )
+        prow_l, pcol_l = min_node_l
+        row_dir_l = np.sign(curr_V_l[0] - prow_l)
+        col_dir_l = np.sign(curr_V_l[1] - pcol_l)
+        row_range_l = range(prow_l, prow_l+glob_step) if row_dir_l > 0 else range(prow_l-glob_step+1, prow_l+1)
+        col_range_l = range(pcol_l, pcol_l+glob_step) if col_dir_l > 0 else range(pcol_l-glob_step+1, pcol_l+1)
+        for r in row_range_l:
+            for c in col_range_l:
+                curve_set_l[r, c] = 1
+                curve_l = np.concatenate(
+                    (
+                        curve_l,
+                        np.array([[c], [r]])
+                    ),
+                    axis=1
+                )
 
         # Update active nodes and curve nodes
         par_V_l = curr_V_l
@@ -168,11 +198,12 @@ def order_pixels():
         for i, j in roi:
             node_l = (i+curr_V_l[0], j+curr_V_l[1])
             if ((node_l[0] < img_l.shape[0]) and (node_l[1] < img_l.shape[1]) and
-                (node_l not in curve_set_l) and (img_l[node_l] <= thresh)
+                (not curve_set_l[node_l]) and (img_l[node_l] <= thresh)
                 ):
                 active_l.append(node_l)
 
-    while len(active_r):
+    #TODO update this loop
+    while False and len(active_r):
         # calculate min cost active node
         min_cost_r = np.Inf
         min_nodes_r = []
@@ -259,11 +290,11 @@ def order_pixels():
                 ):
                 active_r.append(node_r)
     
-    curve_l = curve_l[:, :-25]
-    curve_r = curve_r[:, :-4]
-    # plt.imshow(img_l_init, cmap="gray")
-    # plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
-    # plt.show()
+    # curve_l = curve_l[:, :-25]
+    # curve_r = curve_r[:, :-4]
+    plt.imshow(img_l_init, cmap="gray")
+    plt.scatter(curve_l[0], curve_l[1], c=np.linspace(0, curve_l.shape[1]-1, curve_l.shape[1]), cmap="hot")
+    plt.show()
     # plt.imshow(img_r_init, cmap="gray")
     # plt.scatter(curve_r[0], curve_r[1], c=np.linspace(0, curve_r.shape[1]-1, curve_r.shape[1]), cmap="hot")
     # plt.show()
