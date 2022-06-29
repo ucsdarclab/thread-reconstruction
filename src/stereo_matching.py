@@ -150,12 +150,6 @@ def stereo_match():
 
     img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
     img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
-    # TODO Remove
-    # plt.imshow(img1, cmap="gray")
-    # plt.figure(2)
-    # plt.imshow(img2, cmap="gray")
-    # plt.show()
-    # return
 
     if OPENCV_MATCHING:
         sgbm_win_size = 5
@@ -173,47 +167,14 @@ def stereo_match():
         disp_cv = sgbm.compute(img1, img2)
         disp_cv = np.float32(disp_cv) / 16.0
         img_3D = cv2.reprojectImageTo3D(disp_cv, Q)
-        # ordering, _ = order_pixels()
-        # points_3D = img_3D[ordering[1], ordering[0]]#np.stack([
-        #     ordering[1],
-        #     ordering[0],
-        #     img_3D[ordering[1], ordering[0], 2]
-        # ])
-        # if TESTING:
-        #     ordering, ordering2 = order_pixels()
-        #     # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
-        #     #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
-        #     # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
-        #     #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
-        #     camera_3D = img_3D[ordering[1, 0], ordering[0, 0]]
-        #     camera_3D = np.array([camera_3D[0], camera_3D[1], camera_3D[2], 1])
-        #     camera_proj = np.matmul(P2, camera_3D)
-        #     camera_proj /= camera_proj[-1]
-        #     print(camera_proj)
-        #     print(ordering2[..., 0])
-        #     return
-
-        #     ax = plt.axes(projection='3d')
-        #     ax.view_init(0, 0)
-        #     # ax.set_xlim(1, 500)
-        #     # ax.set_ylim(1, 500)
-        #     # ax.set_zlim(100, 300)
-        #     ax.scatter(
-        #         ordering[1],#img_3D[ordering[1], ordering[0], 0],
-        #         ordering[0],#img_3D[ordering[1], ordering[0], 1],
-        #         img_3D[ordering[1], ordering[0], 2]
-        #     )
-        #     plt.show()
-        # return P1, P2, points_3D #TODO Add this back
-    if True: # TODO remove
+        return img_3D
+    else:
         img1 = np.float32(img1)
         img2 = np.float32(img2)
         thresh = 40
         pix_thresh = 210
         max_disp = 40
-        # numerator for 3D calculation
-        num = np.linalg.norm(T) * np.sqrt(K1[0, 0]**2 + K1[1, 1]**2) # cm * pixels ? TODO Check units
-
+        
         pixels1 = np.argwhere(img1<=pix_thresh)
         pix_to_idx = {(int(pix[0]), int(pix[1])):i for i, pix in enumerate(pixels1)}
         disps = np.zeros(pixels1.shape[0])
@@ -229,7 +190,6 @@ def stereo_match():
         # ordmap1[ord1[0], ord1[1]] = np.indices([ord1.shape[1]])/ord1.shape[1]*100
         # ordmap2[ord2[0], ord2[1]] = np.indices([ord2.shape[1]])/ord2.shape[1]*100
 
-        # to_r = 1e5 #prevent floating-point cut-off
         rad = 2
         c_data = 5
         c_slope = 8
@@ -240,7 +200,6 @@ def stereo_match():
             chunk = img1[pix1[0]-rad:pix1[0]+rad+1, pix1[1]-rad:pix1[1]+rad+1]
             seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(pixels1[i], 0) - rad
 
-            # energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
             energy = np.array([
                 np.sum(
                     (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2 #+ 
