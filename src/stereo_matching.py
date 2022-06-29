@@ -173,37 +173,37 @@ def stereo_match():
         disp_cv = sgbm.compute(img1, img2)
         disp_cv = np.float32(disp_cv) / 16.0
         img_3D = cv2.reprojectImageTo3D(disp_cv, Q)
-        ordering, _ = order_pixels()
-        points_3D = img_3D[ordering[1], ordering[0]]#np.stack([
+        # ordering, _ = order_pixels()
+        # points_3D = img_3D[ordering[1], ordering[0]]#np.stack([
         #     ordering[1],
         #     ordering[0],
         #     img_3D[ordering[1], ordering[0], 2]
         # ])
-        if TESTING:
-            ordering, ordering2 = order_pixels()
-            # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
-            #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
-            # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
-            #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
-            camera_3D = img_3D[ordering[1, 0], ordering[0, 0]]
-            camera_3D = np.array([camera_3D[0], camera_3D[1], camera_3D[2], 1])
-            camera_proj = np.matmul(P2, camera_3D)
-            camera_proj /= camera_proj[-1]
-            print(camera_proj)
-            print(ordering2[..., 0])
-            return
+        # if TESTING:
+        #     ordering, ordering2 = order_pixels()
+        #     # ordering_0 = np.int64([ordering[0, i] * 480/433 + off 
+        #     #     for i in range(ordering.shape[1]) for off in [-1,0,1,-1,0,1,-1,0,1]])
+        #     # ordering_1 = np.int64([ordering[1, i] * 640/577+ off 
+        #     #     for i in range(ordering.shape[1]) for off in [-1,-1,-1,0,0,0,1,1,1]])
+        #     camera_3D = img_3D[ordering[1, 0], ordering[0, 0]]
+        #     camera_3D = np.array([camera_3D[0], camera_3D[1], camera_3D[2], 1])
+        #     camera_proj = np.matmul(P2, camera_3D)
+        #     camera_proj /= camera_proj[-1]
+        #     print(camera_proj)
+        #     print(ordering2[..., 0])
+        #     return
 
-            ax = plt.axes(projection='3d')
-            ax.view_init(0, 0)
-            # ax.set_xlim(1, 500)
-            # ax.set_ylim(1, 500)
-            # ax.set_zlim(100, 300)
-            ax.scatter(
-                ordering[1],#img_3D[ordering[1], ordering[0], 0],
-                ordering[0],#img_3D[ordering[1], ordering[0], 1],
-                img_3D[ordering[1], ordering[0], 2]
-            )
-            plt.show()
+        #     ax = plt.axes(projection='3d')
+        #     ax.view_init(0, 0)
+        #     # ax.set_xlim(1, 500)
+        #     # ax.set_ylim(1, 500)
+        #     # ax.set_zlim(100, 300)
+        #     ax.scatter(
+        #         ordering[1],#img_3D[ordering[1], ordering[0], 0],
+        #         ordering[0],#img_3D[ordering[1], ordering[0], 1],
+        #         img_3D[ordering[1], ordering[0], 2]
+        #     )
+        #     plt.show()
         # return P1, P2, points_3D #TODO Add this back
     if True: # TODO remove
         img1 = np.float32(img1)
@@ -220,6 +220,15 @@ def stereo_match():
         reliab = np.zeros(pixels1.shape[0])
         affins = np.zeros((pixels1.shape[0], 9))
 
+        # ORDERING
+        # ord1, ord2 = order_pixels()
+
+        # ordmap1 = np.ones_like(img1) * -100
+        # ordmap2 = np.ones_like(img2) * -100
+
+        # ordmap1[ord1[0], ord1[1]] = np.indices([ord1.shape[1]])/ord1.shape[1]*100
+        # ordmap2[ord2[0], ord2[1]] = np.indices([ord2.shape[1]])/ord2.shape[1]*100
+
         # to_r = 1e5 #prevent floating-point cut-off
         rad = 2
         c_data = 5
@@ -234,7 +243,8 @@ def stereo_match():
             # energy = np.array([(img1[pix1] - img2[pix1[0], pix1[1] - off])**2 for off in range(max_disp)])
             energy = np.array([
                 np.sum(
-                    (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2
+                    (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2 #+ 
+                    # (ordmap1[seg[:,0], seg[:,1]] - ordmap2[seg[:,0], seg[:,1] - off])**2
                 ) for off in range(max_disp)
             ])
             
@@ -245,7 +255,7 @@ def stereo_match():
             
             disps[i] = disp
             x = (next_best - best)/((best + 1e-7)*c_data)
-            reliab[i] = 1/(1+np.exp(-1*c_slope*(x-c_shift)))
+            reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
 
             roi = img1[pix1[0]-1:pix1[0]+2, pix1[1]-1:pix1[1]+2].copy()
             # ignore current pixel
@@ -307,12 +317,12 @@ def stereo_match():
             np.stack((pixels1[:, 0], pixels1[:, 1], F, np.ones_like(F)))
         )
         depth /= np.expand_dims(depth[3].copy(), 0)
-        # ax.scatter(
-        #     pixels1[:, 0],
-        #     pixels1[:, 1],
-        #     depth[2],
-        #     s=1
-        # )
+        ax.scatter(
+            pixels1[:, 0],
+            pixels1[:, 1],
+            depth[2],
+            s=1
+        )
         ax.scatter(
             pixels1[:, 0],
             pixels1[:, 1],
