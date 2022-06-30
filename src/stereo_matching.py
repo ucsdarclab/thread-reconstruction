@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
 from pixel_ordering import order_pixels
+import sys
 
 OPENCV_MATCHING = True
 TESTING = False
@@ -115,25 +116,9 @@ gt = np.array([
     [369, 132, 106]
 ])
 
-def stereo_match():
-    # Get normal and segmented images
-    img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
-    img1 = cv2.imread(img_dir + "thread_1_left.jpg")
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(img_dir + "thread_1_right.jpg")
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-
-    img1seg = cv2.imread(img_dir + "thread_1_left_rembg.png")
-    img1seg = cv2.cvtColor(img1seg, cv2.COLOR_BGR2GRAY)
-    img2seg = cv2.imread(img_dir + "thread_1_right_rembg.png")
-    img2seg = cv2.cvtColor(img2seg, cv2.COLOR_BGR2GRAY)
-
-    # TODO remove if experimentation fails
-    img1 = img1seg
-    img2 = img2seg
-
+def stereo_match(img1, img2):
     # Read in camera calibration values
-    cv_file = cv2.FileStorage(img_dir + "camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
+    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     D1 = cv_file.getNode("D1").mat()
     K2 = cv_file.getNode("K2").mat()
@@ -315,4 +300,10 @@ def stereo_match():
 
 
 if __name__ == "__main__":
-    stereo_match()
+    file1 = sys.argv[1]
+    file2 = sys.argv[2]
+    img1 = cv2.imread(file1)
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.imread(file2)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    stereo_match(img1, img2)
