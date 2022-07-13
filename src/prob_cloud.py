@@ -24,11 +24,15 @@ def prob_cloud(img1, img2):
     cloud = np.zeros((5*seg_pix.shape[0], 3))
     varians = np.zeros_like(img1)
     for i, pix in enumerate(seg_pix):
-        roi = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
+        r0 = max(0, pix[0]-rad)
+        r1 = min(img1.shape[0]-1, pix[0]+rad+1)
+        c0 = max(0, pix[1]-rad)
+        c1 = min(img1.shape[1]-1, pix[1]+rad+1)
+        roi = img1[r0:r1, c0:c1]
         roi_seg = np.argwhere(roi <= thresh) + np.expand_dims(pix, 0) - rad
         roi_depths = img_3D[roi_seg[:, 0], roi_seg[:, 1], 2]
         roi_depths = roi_depths[roi_depths != np.inf]
-        roi_depths = roi_depths[roi_depths >0]
+        roi_depths = roi_depths[roi_depths > 0]
         mean = np.mean(roi_depths)
         std = np.std(roi_depths)
         varians[pix[0], pix[1]] = std**2
@@ -52,36 +56,13 @@ def prob_cloud(img1, img2):
     #     img_3D[seg_pix[:, 0], seg_pix[:, 1], 2],
     #     s=2, c="r")
     ax.set_zlim(0, 1000)
-    plt.show()
-        
-    
-    
-    # means = np.expand_dims(means, -1)
-    # varians = np.expand_dims(varians, -1)
-    # X, Y, Z = np.mgrid[240:280, 320:360, 200:600:30j]
-    # values = np.zeros_like(X)#1/np.sqrt(2*np.pi*varians + 1e-7) * np.exp(-0.5 * (Z - means)**2 / (varians + 1e-7))
-    # valid = np.argwhere(np.squeeze(varians) > 1e-7)
-    # values[valid[:, 0], valid[:, 1], :] = (
-    #     1/np.sqrt(2*np.pi*varians[valid[:, 0], valid[:, 1]]) * \
-    #     np.exp(-0.5 * (Z[0, 0] - \
-    #     means[valid[:, 0], valid[:, 1]])**2 / varians[valid[:, 0], valid[:, 1]])
-    # )
+    # plt.show()
+    return cloud
 
-    # fig = go.Figure(data=go.Volume(
-    #     x=X.flatten(),
-    #     y=Y.flatten(),
-    #     z=Z.flatten(),
-    #     value=values.flatten(),
-    #     isomin=0,
-    #     isomax=1,
-    #     opacity=0.1,
-    #     surface_count=17,
-    #     ))
-    # fig.show()
 
 if __name__ == "__main__":
-    file1 = sys.argv[1]
-    file2 = sys.argv[2]
+    file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
+    file2 = "../Sarah_imgs/thread_1_right_rembg.png"#sys.argv[2]
     img1 = cv2.imread(file1)
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(file2)
