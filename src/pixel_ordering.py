@@ -10,7 +10,7 @@ Tip locations:
     Left- x=337, y=259 (bottom rightmost pixel)
     Right- x=314, y=259 (bottom rightmost pixel)
 """
-def order_pixels():
+def order_pixels(img_l, img_r):
     #""" #For finding image pixels
     # img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_right_rembg.png")
     # TODO Uncomment
@@ -20,11 +20,11 @@ def order_pixels():
     # """
     # Set up image and useful constants
     img_dir = "/Users/neelay/ARClabXtra/Sarah_imgs/"
-    img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
-    img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
+    # img_l = cv2.imread(img_dir + "thread_1_left_rembg.png")
+    # img_l = cv2.cvtColor(img_l, cv2.COLOR_BGR2GRAY)
     img_l_init = img_l.copy()
-    img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
-    img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
+    # img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
+    # img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     img_r_init = img_r.copy()
     thresh = 226
     upsilon = 10
@@ -324,4 +324,10 @@ def order_pixels():
     return curve_l, curve_r
 
 if __name__ == "__main__":
-    order_pixels()
+    file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
+    file2 = "../Sarah_imgs/thread_1_right_rembg.png"#sys.argv[2]
+    img1 = cv2.imread(file1)
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.imread(file2)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    order_pixels(img1, img2)

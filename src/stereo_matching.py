@@ -300,8 +300,8 @@ def stereo_match(img1, img2):
 
 
 if __name__ == "__main__":
-    file1 = sys.argv[1]
-    file2 = sys.argv[2]
+    file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
+    file2 = "../Sarah_imgs/thread_1_right_rembg.png"#sys.argv[2]
     img1 = cv2.imread(file1)
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(file2)
