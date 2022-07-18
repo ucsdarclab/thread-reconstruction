@@ -45,7 +45,7 @@ def curve_fit2(img1, img2):
         ])
 
         ord_idx += interval
-    ax = plt.axes(projection="3d")
+    # ax = plt.axes(projection="3d")
     # cloud_bounds = cloud_bounds.reshape(-1, 3)
     # ax.scatter(seg_pix[:, 0], seg_pix[:, 1], img_3D[seg_pix[:, 0], seg_pix[:, 1], 2], s=1)
     # ax.plot(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 2], c="b")
@@ -71,28 +71,38 @@ def curve_fit2(img1, img2):
 
     # Initialize other spline parameters
     t_star = np.array([np.sum(knots[k+1:k+d+1])/d for k in range(num_bases)]) #Greville abscissae
-    l = np.zeros_like(t_star, dtype=np.int32)
-    knot_idx = d
-    for i, pt in enumerate(t_star):
-        while knots[knot_idx+1] < pt:
-            knot_idx += 1
-        l[i] = knot_idx
-    print(knots)
-    print(t_star)
-    print(l)
-    k_low = l[:-1] - (d - 1)
-    k_high = l[1:]
-    I_star = np.array([[i for i in range(l[k]-d+1, l[k])] for k in range(num_bases)])
-    Bki = np.zeros_like(I_star)
-    for k in range(num_bases):
-        for i in I_star[k]:
-            if i > k:
-                t = knots[i:k_high[k]+1 + d+1]
-                c = np.array([t_star[j] - t_star[i] for j in range(i, k_high[k]+1)])
-            else:
-                t = knots[k_low[k]:i+1 + d+1]
-                c = np.array([t_star[i] - t_star[j] for j in range(k_low[k], i+1)])
-            Bki[k, i] = interp.BSpline(t, c, d)
+    # l = np.zeros_like(t_star, dtype=np.int32)
+    # knot_idx = d
+    # for i, pt in enumerate(t_star):
+    #     while knots[knot_idx+1] < pt:
+    #         knot_idx += 1
+    #     l[i] = knot_idx
+    # k_low = l[:-1] - (d - 1)
+    # k_high = l[1:]
+    # I_star = np.array([[i for i in range(l[k]-d+1, l[k])] for k in range(num_bases)])
+    # Bki = np.zeros_like(I_star)
+    # for k in range(num_bases):
+    #     for i in I_star[k]:
+    #         if i > k:
+    #             t = knots[i:k_high[k]+1 + d+1]
+    #             c = np.array([t_star[j] - t_star[i] for j in range(i, k_high[k]+1)])
+    #         else:
+    #             t = knots[k_low[k]:i+1 + d+1]
+    #             c = np.array([t_star[i] - t_star[j] for j in range(k_low[k], i+1)])
+    #         Bki[k, i] = interp.BSpline(t, c, d)
+    b = np.array([0, 2, 2, 0, 0, 1, 1])
+    tck = interp.BSpline(knots, b, d)
+    x = np.linspace(start, end, 50)
+    x_b = t_star#np.linspace(start, end, num_bases)
+    spline = interp.splev(x, tck)
+    spline_b = interp.splev(x_b, tck)
+    e_top = np.where(b>spline_b, b, spline_b)
+    e_low = np.where(b<spline_b, b, spline_b)
+    plt.plot(x, spline)
+    plt.plot(x_b, e_top, c="r")
+    plt.plot(x_b, e_low, c="r")
+    plt.scatter(x_b, b, c="g")
+    plt.show()
 
     
 
