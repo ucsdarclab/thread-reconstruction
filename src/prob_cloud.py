@@ -48,14 +48,14 @@ def prob_cloud(img1, img2):
     #     roi_vars = varians[roi_seg[:, 0], roi_seg[:, 1]]
     #     var_var[5*i:5*i+5] = 0 if varians[pix[0], pix[1]]<1e-7 else \
     #         np.log(np.var(roi_vars) / varians[pix[0], pix[1]]+1)
-    ax = plt.axes(projection="3d")
-    ax.scatter(cloud[:, 0], cloud[:, 1], cloud[:, 2], s=2)#, c=var_var)
+    # ax = plt.axes(projection="3d")
+    # ax.scatter(cloud[:, 0], cloud[:, 1], cloud[:, 2], s=2)#, c=var_var)
     # ax.scatter(
     #     seg_pix[:, 0],
     #     seg_pix[:, 1],
     #     img_3D[seg_pix[:, 0], seg_pix[:, 1], 2],
     #     s=2, c="r")
-    ax.set_zlim(0, 1000)
+    # ax.set_zlim(0, 1000)
     # plt.show()
     return cloud
 

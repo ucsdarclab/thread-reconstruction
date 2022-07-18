@@ -2,6 +2,7 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import matplotlib.image as mpimg
 import numpy as np
+import scipy.interpolate as interp
 import cv2
 from stereo_matching import stereo_match
 from prob_cloud import prob_cloud
@@ -44,14 +45,85 @@ def curve_fit2(img1, img2):
         ])
 
         ord_idx += interval
-    print(ord_idx, order.shape[1])
     ax = plt.axes(projection="3d")
-    cloud_bounds = cloud_bounds.reshape(-1, 3)
-    ax.scatter(cloud_bounds[:, 0], cloud_bounds[:, 1], cloud_bounds[:, 2], s=2)
-    ax.scatter(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 2], c="r")
-    ax.scatter(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 3], c="r")
+    # cloud_bounds = cloud_bounds.reshape(-1, 3)
+    # ax.scatter(seg_pix[:, 0], seg_pix[:, 1], img_3D[seg_pix[:, 0], seg_pix[:, 1], 2], s=1)
+    # ax.plot(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 2], c="b")
+    # ax.plot(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 3], c="b")
+    # print(depth_bounds.shape)
+    # lim = slice(17, 27)
+    # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 2], c="orange")
+    # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 3], c="orange")
     # ax.set_zlim(0, 1000)
-    plt.show()
+    # plt.show()
+    start = 17
+    end = 27-1
+    
+
+    # Initialize knots to take on range [start, end]
+    num_bases = 7
+    d = 4
+    knots = np.linspace(start, end, num_bases+1 - (d+1) + 1)
+    delta = knots[1] - knots[0]
+    knots_start = np.ones((d,)) * start
+    knots_end = np.ones((d,)) * end
+    knots = np.concatenate((knots_start, knots, knots_end))
+
+    # Initialize other spline parameters
+    t_star = np.array([np.sum(knots[k+1:k+d+1])/d for k in range(num_bases)]) #Greville abscissae
+    l = np.zeros_like(t_star, dtype=np.int32)
+    knot_idx = d
+    for i, pt in enumerate(t_star):
+        while knots[knot_idx+1] < pt:
+            knot_idx += 1
+        l[i] = knot_idx
+    print(knots)
+    print(t_star)
+    print(l)
+    k_low = l[:-1] - (d - 1)
+    k_high = l[1:]
+    I_star = np.array([[i for i in range(l[k]-d+1, l[k])] for k in range(num_bases)])
+    Bki = np.zeros_like(I_star)
+    for k in range(num_bases):
+        for i in I_star[k]:
+            if i > k:
+                t = knots[i:k_high[k]+1 + d+1]
+                c = np.array([t_star[j] - t_star[i] for j in range(i, k_high[k]+1)])
+            else:
+                t = knots[k_low[k]:i+1 + d+1]
+                c = np.array([t_star[i] - t_star[j] for j in range(k_low[k], i+1)])
+            Bki[k, i] = interp.BSpline(t, c, d)
+
+    
+
+    # Set endpoint equality constraints
+    # TODO Make sure chosen depth for keypoint is correct
+    start_d = (depth_bounds[start, 2] + depth_bounds[start, 3]) / 2
+    # TODO add extra checks to make sure no OOB errors occur
+    # TODO Choose different numerical derivative calculation?
+    post_start_d = (depth_bounds[start+1, 2] + depth_bounds[start+1, 3]) / 2
+    pre_start_d = (depth_bounds[start-1, 2] + depth_bounds[start-1, 3]) / 2
+    post2_start_d = (depth_bounds[start+2, 2] + depth_bounds[start+1, 3]) / 2
+    a0 = start_d
+    a1 = post_start_d - a0
+    a2 = a1 - (a0 - pre_start_d)
+    next_2nd = (post2_start_d - post_start_d) - a1
+    a3 = next_2nd - a2
+    
+    # TODO As above
+    end_d = (depth_bounds[end, 2] + depth_bounds[end, 3]) / 2
+    post_end_d = (depth_bounds[end+1, 2] + depth_bounds[end+1, 3]) / 2
+    pre_end_d = (depth_bounds[end-1, 2] + depth_bounds[end-1, 3]) / 2
+    post2_end_d = (depth_bounds[end+2, 2] + depth_bounds[end+1, 3]) / 2
+    b0 = end_d
+    b1 = post_end_d - b0
+    b2 = b1 - (b0 - pre_end_d)
+    next_2nd = (post2_end_d - post_end_d) - b1
+    b3 = next_2nd - b2
+
+
+    def objective(x):
+        pass
 
 
 
