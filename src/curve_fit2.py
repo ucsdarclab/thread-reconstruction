@@ -59,8 +59,8 @@ def curve_fit2(img1, img2):
     # ax.set_zlim(0, 1000)
     # plt.show()
     
-    start = 17
-    end = 27-1
+    start = 27
+    end = 37-1
 
     # Initialize spline params
     num_bases = 7
@@ -157,12 +157,12 @@ def curve_fit2(img1, img2):
 
     A = [interp.splev([start], tck0, der) for der in range(4)]
     B = [interp.splev([end], tck0, der) for der in range(4)]
-    t_all = np.sort(np.concatenate((t_star, np.arange(start, end+1))))
+    t_all = np.sort(np.concatenate((t_star[1:-1], np.arange(start, end+1))))
 
     constraints = []
-    for der, (Ai, Bi) in enumerate(zip()):
-        constraints.append({"type":"eq", "fun":start_constr, "args":(start, der, Ai)})
-        constraints.append({"type":"eq", "fun":end_constr, "args":(start, der, Bi)})
+    for der, (Ai, Bi) in enumerate(zip(A[:1], B[:1])):
+        constraints.append({"type":"eq", "fun":start_constr, "args":(knots, d, start, der, Ai)})
+        constraints.append({"type":"eq", "fun":end_constr, "args":(knots, d, end, der, Bi)})
     for p1, p2 in zip(t_all[:-1], t_all[1:]):
         constraints.append(
             {
@@ -181,6 +181,11 @@ def curve_fit2(img1, img2):
 
     plt.figure(2)
     final = scipy.optimize.minimize(objective, b0, method = 'SLSQP', args=(knots, d, t_star), constraints=constraints)
+    print("success:", final.success)
+    print("status:", final.status)
+    print("message:", final.message)
+    print("num iter:", final.nit)
+    # print("max violation:", final.maxcv)
     b = np.array([val for val in final.x])
     tck = interp.BSpline(knots, b, d)
     x = np.linspace(start, end, 50)
@@ -222,17 +227,17 @@ def get_envelope(spline, t_star):
     e_top = np.where(b>spline_b, b, spline_b)
     return e_low, e_top
 
-def start_constr(args, start, der, a):
+def start_constr(args, knots, d, start, der, A):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
     spline = interp.splev([start], tck, der)
-    return spline - a
+    return spline - A
 
-def end_constr(args, end, der, b):
+def end_constr(args, knots, d, end, der, B):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
     spline = interp.splev([end], tck, der)
-    return spline - b
+    return spline - B
 
 def lower_bound(args, knots, d, t_star, constr, start, end):
     b = np.array([val for val in args])
