@@ -59,8 +59,8 @@ def curve_fit2(img1, img2):
     # ax.set_zlim(0, 1000)
     # plt.show()
     
-    start = 27
-    end = 37-1
+    start = 17
+    end = 27-1
 
     # Initialize spline params
     num_bases = 7
@@ -140,16 +140,18 @@ def curve_fit2(img1, img2):
 
     low_constr = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 2])
     high_constr = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 3])
-    b0 = (low_constr(t_star) + high_constr(t_star))/2
-    tck0 = interp.BSpline(knots, b0, d)
+    center = (low_constr(t_star) + high_constr(t_star))/2
+    tck0 = interp.splrep(t_star, center, k=4, t=knots[5:-5]) #interp.BSpline(knots, b0, d)
+    tck0 = interp.BSpline(tck0[0], tck0[1][:num_bases], tck0[2])
+    b0 = tck0.c
 
     x = np.linspace(start, end, 50)
     spline = interp.splev(x, tck0)
     spline_b = interp.splev(t_star, tck0)
     e_low, e_top = get_envelope(tck0, t_star)
     plt.plot(x, spline)
-    plt.plot(t_star, e_low, c="r")
-    plt.plot(t_star, e_top, c="r")
+    # plt.plot(t_star, e_low, c="r")
+    # plt.plot(t_star, e_top, c="r")
     idxs = np.arange(start, end+1)
     plt.plot(idxs, depth_bounds[start:end+1, 2], c="g")
     plt.plot(idxs, depth_bounds[start:end+1, 3], c="g")
@@ -157,7 +159,7 @@ def curve_fit2(img1, img2):
 
     A = [interp.splev([start], tck0, der) for der in range(4)]
     B = [interp.splev([end], tck0, der) for der in range(4)]
-    t_all = np.sort(np.concatenate((t_star[1:-1], np.arange(start, end+1))))
+    t_all = np.arange(start, end+1)#np.sort(np.concatenate((t_star[1:-1], np.arange(start, end+1))))
 
     constraints = []
     for der, (Ai, Bi) in enumerate(zip(A[:1], B[:1])):
@@ -193,8 +195,8 @@ def curve_fit2(img1, img2):
     spline_b = interp.splev(t_star, tck)
     e_low, e_top = get_envelope(tck, t_star)
     plt.plot(x, spline)
-    plt.plot(t_star, e_low, c="r")
-    plt.plot(t_star, e_top, c="r")
+    # plt.plot(t_star, e_low, c="r")
+    # plt.plot(t_star, e_top, c="r")
     idxs = np.arange(start, end+1)
     plt.plot(idxs, depth_bounds[start:end+1, 2], c="g")
     plt.plot(idxs, depth_bounds[start:end+1, 3], c="g")
@@ -242,9 +244,9 @@ def end_constr(args, knots, d, end, der, B):
 def lower_bound(args, knots, d, t_star, constr, start, end):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
-    e_low, _ = get_envelope(tck, t_star)
-    e_interp = interp.interp1d(t_star, e_low)
-    dists = e_interp([start, end]) - constr([start, end])
+    # e_low, _ = get_envelope(tck, t_star)
+    # e_interp = interp.interp1d(t_star, e_low)
+    dists = tck([start, end]) - constr([start, end])#e_interp([start, end]) - constr([start, end])
     neg_only = np.where(dists<0, dists, 0)
     neg_sum = np.sum(neg_only)
     if neg_sum < 0:
@@ -255,9 +257,9 @@ def lower_bound(args, knots, d, t_star, constr, start, end):
 def upper_bound(args, knots, d, t_star, constr, start, end):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
-    _, e_high = get_envelope(tck, t_star)
-    e_interp = interp.interp1d(t_star, e_high)
-    dists = constr([start, end]) - e_interp([start, end])
+    # _, e_high = get_envelope(tck, t_star)
+    # e_interp = interp.interp1d(t_star, e_high)
+    dists = constr([start, end]) - tck([start, end])#e_interp([start, end])
     neg_only = np.where(dists<0, dists, 0)
     neg_sum = np.sum(neg_only)
     if neg_sum < 0:
