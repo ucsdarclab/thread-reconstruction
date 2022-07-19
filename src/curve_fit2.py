@@ -138,9 +138,9 @@ def curve_fit2(img1, img2):
     # next_2nd = (post2_end_d - post_end_d) - b1
     # b3 = next_2nd - b2
 
-    low = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 2])
-    high = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 3])
-    b0 = (low(t_star) + high(t_star))/2
+    low_constr = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 2])
+    high_constr = interp.interp1d(np.arange(start, end+1), depth_bounds[start:end+1, 3])
+    b0 = (low_constr(t_star) + high_constr(t_star))/2
     tck0 = interp.BSpline(knots, b0, d)
 
     x = np.linspace(start, end, 50)
@@ -157,13 +157,27 @@ def curve_fit2(img1, img2):
 
     A = [interp.splev([start], tck0, der) for der in range(4)]
     B = [interp.splev([end], tck0, der) for der in range(4)]
+    t_all = np.sort(np.concatenate((t_star, np.arange(start, end+1))))
 
     constraints = []
     for der, (Ai, Bi) in enumerate(zip()):
         constraints.append({"type":"eq", "fun":start_constr, "args":(start, der, Ai)})
         constraints.append({"type":"eq", "fun":end_constr, "args":(start, der, Bi)})
-    constraints.append({"type":"ineq", "fun":lower_bound, "args":(knots, d, t_star, depth_bounds[start:end+1, 2], start, end)})
-    constraints.append({"type":"ineq", "fun":upper_bound, "args":(knots, d, t_star, depth_bounds[start:end+1, 3], start, end)})
+    for p1, p2 in zip(t_all[:-1], t_all[1:]):
+        constraints.append(
+            {
+                "type":"ineq",
+                "fun":lower_bound,
+                "args":(knots, d, t_star, low_constr, p1, p2)
+            }
+        )
+        constraints.append(
+            {
+                "type":"ineq",
+                "fun":upper_bound,
+                "args":(knots, d, t_star, high_constr, p1, p2)
+            }
+        )
 
     plt.figure(2)
     final = scipy.optimize.minimize(objective, b0, method = 'SLSQP', args=(knots, d, t_star), constraints=constraints)
@@ -225,7 +239,7 @@ def lower_bound(args, knots, d, t_star, constr, start, end):
     tck = interp.BSpline(knots, b, d)
     e_low, _ = get_envelope(tck, t_star)
     e_interp = interp.interp1d(t_star, e_low)
-    dists = e_interp(np.arange(start, end+1)) - constr
+    dists = e_interp([start, end]) - constr([start, end])
     neg_only = np.where(dists<0, dists, 0)
     neg_sum = np.sum(neg_only)
     if neg_sum < 0:
@@ -238,13 +252,38 @@ def upper_bound(args, knots, d, t_star, constr, start, end):
     tck = interp.BSpline(knots, b, d)
     _, e_high = get_envelope(tck, t_star)
     e_interp = interp.interp1d(t_star, e_high)
-    dists = constr - e_interp(np.arange(start, end+1))
+    dists = constr([start, end]) - e_interp([start, end])
     neg_only = np.where(dists<0, dists, 0)
     neg_sum = np.sum(neg_only)
     if neg_sum < 0:
         return neg_sum
     else:
         return np.sum(dists)
+# def lower_bound(args, knots, d, t_star, constr, start, end):
+#     b = np.array([val for val in args])
+#     tck = interp.BSpline(knots, b, d)
+#     e_low, _ = get_envelope(tck, t_star)
+#     e_interp = interp.interp1d(t_star, e_low)
+#     dists = e_interp(np.arange(start, end+1)) - constr
+#     neg_only = np.where(dists<0, dists, 0)
+#     neg_sum = np.sum(neg_only)
+#     if neg_sum < 0:
+#         return neg_sum
+#     else:
+#         return np.sum(dists)
+
+# def upper_bound(args, knots, d, t_star, constr, start, end):
+#     b = np.array([val for val in args])
+#     tck = interp.BSpline(knots, b, d)
+#     _, e_high = get_envelope(tck, t_star)
+#     e_interp = interp.interp1d(t_star, e_high)
+#     dists = constr - e_interp(np.arange(start, end+1))
+#     neg_only = np.where(dists<0, dists, 0)
+#     neg_sum = np.sum(neg_only)
+#     if neg_sum < 0:
+#         return neg_sum
+#     else:
+#         return np.sum(dists)
         
 
 
