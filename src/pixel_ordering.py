@@ -47,6 +47,7 @@ def order_pixels(img_l, img_r):
         [par_V[1], curr_V[1]]
     ])
     curve_steps_l = []
+    curve_steps_r = []
 
     # Pixel ordering setup
     active = []
@@ -303,6 +304,7 @@ def order_pixels(img_l, img_r):
                     ),
                     axis=1
                 )
+        curve_steps_r.append(glob_step)
 
         # Update active nodes and curve nodes
         par_V = curr_V
@@ -323,7 +325,7 @@ def order_pixels(img_l, img_r):
     # plt.scatter(curve_r[1], curve_r[0], c=np.linspace(0, curve_r.shape[1]-1, curve_r.shape[1]), cmap="hot")
     # plt.show()
 
-    return curve_l, curve_r, curve_steps_l
+    return curve_l, curve_r, curve_steps_l, curve_steps_r
 
 if __name__ == "__main__":
     file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
