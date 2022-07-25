@@ -116,7 +116,7 @@ gt = np.array([
     [369, 132, 106]
 ])
 
-def stereo_match(img1, img2, segpix1):
+def stereo_match(img1, img2):
     # Read in camera calibration values
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
