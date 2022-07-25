@@ -116,7 +116,7 @@ gt = np.array([
     [369, 132, 106]
 ])
 
-def stereo_match(img1, img2):
+def stereo_match(img1, img2, segpix1):
     # Read in camera calibration values
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -300,10 +300,40 @@ def stereo_match(img1, img2):
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_1_right_rembg.png"#sys.argv[2]
+    # file1 = "../Sarah_imgs/thread_1_left.jpg"
+    # file2 = "../Sarah_imgs/thread_1_right.jpg"
+    # file3 = "../Sarah_imgs/thread_1_left_seg.jpg"
+    # file4 = "../Sarah_imgs/thread_1_right_seg.jpg"
+
+    # ref1 = cv2.imread(file1)
+    # ref1 = cv2.cvtColor(ref1, cv2.COLOR_BGR2GRAY)
+    # ref2 = cv2.imread(file2)
+    # ref2 = cv2.cvtColor(ref2, cv2.COLOR_BGR2GRAY)
+    # seg1 = cv2.imread(file3)
+    # seg1 = cv2.cvtColor(seg1, cv2.COLOR_BGR2GRAY)
+    # seg2 = cv2.imread(file4)
+    # seg2 = cv2.cvtColor(seg2, cv2.COLOR_BGR2GRAY)
+
+    # # plt.figure(1)
+    # # plt.imshow(seg1, cmap="gray")
+    # # plt.figure(2)
+    # # plt.imshow(seg2, cmap="gray")
+    # # plt.show()
+
+    # segpix1 = np.argwhere(seg1<230)
+    # segpix2 = np.argwhere(seg2<235)
+    # img1 = np.ones_like(ref1)*255
+    # img2 = np.ones_like(ref2)*255
+    # img1[segpix1[:, 0], segpix1[:, 1]] = ref1[segpix1[:, 0], segpix1[:, 1]]
+    # img2[segpix2[:, 0], segpix2[:, 1]] = ref2[segpix2[:, 0], segpix2[:, 1]]
+
+    # cv2.imwrite("../Sarah_imgs/thread_1_left_final.jpg", img1)
+    # cv2.imwrite("../Sarah_imgs/thread_1_right_final.jpg", img2)
+    file1 = "../Sarah_imgs/thread_1_left_final.jpg"
+    file2 = "../Sarah_imgs/thread_1_right_final.jpg"
     img1 = cv2.imread(file1)
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(file2)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
     stereo_match(img1, img2)
