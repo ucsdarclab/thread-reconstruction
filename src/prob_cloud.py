@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 import matplotlib.image as mpimg
+from matplotlib import collections
+from matplotlib import colors as mcolors
 import numpy as np
 import cv2
 from stereo_matching import stereo_match
@@ -168,10 +170,50 @@ def prob_cloud(img1, img2):
         roi = cluster_map[pix[0]-c_rad:pix[0]+c_rad+1, pix[1]-c_rad:pix[1]+c_rad+1]
         near = np.argwhere(roi>0) + np.expand_dims(pix, 0) - c_rad
         if near.shape[0] > 0:
-            c_id = int(cluster_map[near[0, 0], near[0, 1]])
-            solid_clusters[c_id-1].append(pix)
-            solid_map[pix[0], pix[1]] = c_id-1
+            c_id = int(cluster_map[near[0, 0], near[0, 1]])-1
+            solid_clusters[c_id].append(pix)
+            solid_map[pix[0], pix[1]] = c_id+1
     
+    # Cluster ordering
+    adjacents = [set() for _ in solid_clusters]
+    grow_paths = [set() for _ in solid_clusters]
+    for c_id, cluster in enumerate(solid_clusters):
+        # perform DFS to find adjacent clusters
+        frontier = copy.deepcopy(cluster)
+        while len(frontier) > 0:
+            curr = frontier.pop()
+            for d in DIRECTIONS[:4]:
+                neigh = curr + d
+                t_neigh = tuple(neigh)
+                neigh_clust = solid_map[t_neigh]
+                # if neighbor is segmented, unvisited, and outside cluster
+                if img1[neigh[0], neigh[1]] <= pix_thresh and \
+                    t_neigh not in grow_paths[c_id] and \
+                    neigh_clust != c_id+1:
+                    # note down when adjacent keypoints are found
+                    if neigh_clust != 0 :
+                        adjacents[c_id].add(neigh_clust-1)
+                    else:
+                        frontier.append(neigh)
+                        grow_paths[c_id].add(t_neigh)
+    
+    # print([len(adj) for adj in adjacents])
+    # lines = []
+    # for c_id, adj in enumerate(adjacents):
+    #     curr = cluster_means[c_id, :2].copy()
+    #     curr[0], curr[1] = curr[1], curr[0]
+    #     for n_id in adj:
+    #         neigh = cluster_means[int(n_id), :2].copy()
+    #         neigh[0], neigh[1] = neigh[1], neigh[0]
+    #         lines.append([curr, neigh])
+    # lines = np.array(lines)
+    # lc = collections.LineCollection(lines, color="orange")
+    # fig, ax = plt.subplots()
+    # ax.imshow(img1, cmap="gray")
+    # ax.scatter(cluster_means[:, 1], cluster_means[:, 0], s=15, c="r")
+    # ax.add_collection(lc)
+    # plt.show()
+    # return
     
     # plt.figure(1)
     # plt.imshow(img1, cmap="gray")
