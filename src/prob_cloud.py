@@ -5,6 +5,7 @@ import numpy as np
 import cv2
 from stereo_matching import stereo_match
 import sys
+import copy
 
 def prob_cloud(img1, img2):
     pix_thresh = 250
@@ -126,20 +127,21 @@ def prob_cloud(img1, img2):
             vmap[curr[0], curr[1]] = 0
         # Ignore clusters that are too small
         if len(cluster) >= min_size:
-            clusters.append(np.array(cluster))
-    
+            clusters.append(cluster)
+   
+
     # Get statistics for each cluster
     cluster_means = np.zeros((len(clusters), 3))
     cluster_vars = np.zeros((len(clusters), 3))
+    cluster_map = np.zeros_like(img1)
     for i, cluster in enumerate(clusters):
+        cluster = np.array(cluster)
         cluster_means[i, :2] = np.mean(cluster, axis=0)
         cluster_means[i, 2] = np.mean(img_3D[cluster[:, 0], cluster[:, 1], 2])
         cluster_vars[i, :2] = np.var(cluster, axis=0)
         cluster_vars[i, 2] = np.var(img_3D[cluster[:, 0], cluster[:, 1], 2])
+        cluster_map[cluster[:, 0], cluster[:, 1]] = i+1
     
-    # plt.imshow(img1, cmap="gray")
-    # for cluster in clusters:
-    #     plt.scatter(cluster[:, 1], cluster[:, 0])
     # ax = plt.axes(projection='3d')
     # ax.view_init(0, 0)
     # ax.set_zlim(0, 1000)
@@ -153,28 +155,38 @@ def prob_cloud(img1, img2):
     #     cluster_means[:, 1],
     #     cluster_means[:, 2],
     #     c="b")
-    plt.show()
-    return
-
-            
-        
-
-
-    # ax = plt.axes(projection='3d')
-    # ax.view_init(0, 0)
-    # ax.set_zlim(0, 1000)
-    # ax.scatter(
-    #     segpix1[:, 0],
-    #     segpix1[:, 1],
-    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2],
-    #     s=2, c="r")
-    # ax.scatter(
-    #     cluspts[:, 0],
-    #     cluspts[:, 1],
-    #     img_3D[cluspts[:, 0], cluspts[:, 1], 2],
-    #     c="b")
     # plt.show()
     # return
+
+    # "Solidify" clusters for ordering
+    solid_clusters = copy.deepcopy(clusters)
+    solid_map = cluster_map.copy()
+    c_rad = 1
+    for pix in segpix1:
+        if cluster_map[pix[0], pix[1]] != 0:
+            continue
+        roi = cluster_map[pix[0]-c_rad:pix[0]+c_rad+1, pix[1]-c_rad:pix[1]+c_rad+1]
+        near = np.argwhere(roi>0) + np.expand_dims(pix, 0) - c_rad
+        if near.shape[0] > 0:
+            c_id = int(cluster_map[near[0, 0], near[0, 1]])
+            solid_clusters[c_id-1].append(pix)
+            solid_map[pix[0], pix[1]] = c_id-1
+    
+    
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # for cluster in clusters:
+    #     cluster = np.array(cluster)
+    #     plt.scatter(cluster[:, 1], cluster[:, 0])
+    # plt.figure(2)
+    # plt.imshow(img1, cmap="gray")
+    # for cluster in solid_clusters:
+    #     cluster = np.array(cluster)
+    #     plt.scatter(cluster[:, 1], cluster[:, 0])
+    # plt.show()
+    # return
+
+
 
     # Calculate "modified variance"
     mvar = np.zeros(cluspts.shape[0])
