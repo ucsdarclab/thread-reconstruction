@@ -8,6 +8,7 @@ import cv2
 from stereo_matching import stereo_match
 import sys
 import copy
+import time
 
 def prob_cloud(img1, img2):
     pix_thresh = 250
@@ -119,6 +120,10 @@ def prob_cloud(img1, img2):
             cluster.append(curr)
             for d in DIRECTIONS:
                 neigh = curr + d
+                # make sure not out of bounds
+                if neigh[0] < 0 or neigh[0] >= vmap.shape[0] or \
+                    neigh[1] < 0 or neigh[1] >= vmap.shape[1]:
+                    continue
                 if vmap[neigh[0], neigh[1]] == 1:
                     continue
                 frontier.append(neigh)
@@ -184,6 +189,10 @@ def prob_cloud(img1, img2):
             curr = frontier.pop()
             for d in DIRECTIONS[:4]:
                 neigh = curr + d
+                # Check OOB condition
+                if neigh[0] < 0 or neigh[0] >= solid_map.shape[0] or \
+                    neigh[1] < 0 or neigh[1] >= solid_map.shape[1]:
+                    continue
                 t_neigh = tuple(neigh)
                 neigh_clust = solid_map[t_neigh]
                 # if neighbor is segmented, unvisited, and outside cluster
@@ -367,8 +376,8 @@ def prob_cloud(img1, img2):
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
+    file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
     img1 = cv2.imread(file1)
     img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     img2 = cv2.imread(file2)
