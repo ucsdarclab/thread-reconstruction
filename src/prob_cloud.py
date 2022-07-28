@@ -197,6 +197,52 @@ def prob_cloud(img1, img2):
                         frontier.append(neigh)
                         grow_paths[c_id].add(t_neigh)
     
+    # Extract curve segments, avoiding intersections
+    segments = []
+    # prematurely visit intersection keypoints
+    visited = [0 if len(neighs) <= 2 else 1 for neighs in adjacents]
+    outer_frontier = [c_id for c_id, neighs in enumerate(adjacents) if len(neighs) <= 2]
+    while True:
+        # Choose an unvisited source with only 1 unvisited neighbor
+        source = None
+        while len(outer_frontier) > 0:
+            c_id = outer_frontier.pop()
+            paths = 0
+            for n_id in adjacents[c_id]:
+                n_id = int(n_id)
+                if visited[n_id] != 1:
+                    paths += 1
+            if paths == 1:
+                source = c_id
+                break
+        # exit loop when no more curve segments can grow
+        if source == None:
+            break
+        
+        # graph search to get thread
+        frontier = [source]
+        visited[c_id] = 1
+        segment = [cluster_means[source]]
+        while len(frontier) > 0:
+            assert len(frontier) == 1, "Curve is not linked list"
+            curr = frontier.pop()
+            segment.append(cluster_means[curr])
+            for neigh in adjacents[curr]:
+                neigh = int(neigh)
+                if visited[neigh] != 1:
+                    frontier.append(neigh)
+                    visited[neigh] = 1
+        segments.append(segment)
+        
+    plt.imshow(img1, cmap="gray")
+    plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
+    for segment in segments:
+        segment = np.array(segment)
+        plt.scatter(segment[:, 1], segment[:, 0],\
+            c=np.arange(0, segment.shape[0]), cmap="hot")
+    plt.show()
+        
+    "Misc visualization code"
     # print([len(adj) for adj in adjacents])
     # lines = []
     # for c_id, adj in enumerate(adjacents):
