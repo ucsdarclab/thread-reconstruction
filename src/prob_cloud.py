@@ -81,13 +81,6 @@ def prob_cloud(img1, img2):
     # plt.show()
     # return
 
-    # Make keypoints more sparse
-    # relmap = np.zeros_like(img1)
-    # relmap[relpts[:, 0], relpts[:, 1]] = 1
-    # morph = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
-    # clusmap = cv2.erode(relmap, morph)
-    # cluspts = np.argwhere(clusmap==1)
-
     #Find Clusters
     clusters = []
     vlist = [pt for pt in relpts.copy()]
@@ -231,11 +224,11 @@ def prob_cloud(img1, img2):
         # graph search to get thread
         frontier = [source]
         visited[c_id] = 1
-        segment = [cluster_means[source]]
+        segment = []#cluster_means[source]]
         while len(frontier) > 0:
             assert len(frontier) == 1, "Curve is not linked list"
             curr = frontier.pop()
-            segment.append(cluster_means[curr])
+            segment.append(curr)#cluster_means[curr])
             for neigh in adjacents[curr]:
                 neigh = int(neigh)
                 if visited[neigh] != 1:
@@ -243,13 +236,16 @@ def prob_cloud(img1, img2):
                     visited[neigh] = 1
         segments.append(segment)
         
-    plt.imshow(img1, cmap="gray")
-    plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
-    for segment in segments:
-        segment = np.array(segment)
-        plt.scatter(segment[:, 1], segment[:, 0],\
-            c=np.arange(0, segment.shape[0]), cmap="hot")
-    plt.show()
+    # TODO
+    "Join segments to form single ordering"
+    return img_3D, cluster_means, grow_paths, segments[0] 
+    # plt.imshow(img1, cmap="gray")
+    # plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
+    # for segment in segments:
+    #     segment = cluster_means[np.array(segment)]
+    #     plt.scatter(segment[:, 1], segment[:, 0],\
+    #         c=np.arange(0, segment.shape[0]), cmap="hot")
+    # plt.show()
         
     "Misc visualization code"
     # print([len(adj) for adj in adjacents])
@@ -286,38 +282,38 @@ def prob_cloud(img1, img2):
 
 
     # Calculate "modified variance"
-    mvar = np.zeros(cluspts.shape[0])
-    rad = 2
-    for i, pix in enumerate(cluspts):
-        chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
-        seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
-        data = img_3D[seg[:, 0], seg[:, 1]]
-        # get rid of inf points
-        data = np.delete(data, np.argwhere(np.isinf(data[:, 2])), axis=0)
-        center = np.mean(data, axis=0)
-        data_cen = data - center
-        _, _, v = np.linalg.svd(data_cen)
+    # mvar = np.zeros(cluspts.shape[0])
+    # rad = 2
+    # for i, pix in enumerate(cluspts):
+    #     chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
+    #     seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
+    #     data = img_3D[seg[:, 0], seg[:, 1]]
+    #     # get rid of inf points
+    #     data = np.delete(data, np.argwhere(np.isinf(data[:, 2])), axis=0)
+    #     center = np.mean(data, axis=0)
+    #     data_cen = data - center
+    #     _, _, v = np.linalg.svd(data_cen)
         
-        lsrl = v[0]
-        x1 = np.expand_dims(center, 0)
-        x2 = x1 + np.expand_dims(lsrl, 0)
-        x1x0 = data - x1
-        x2x0 = data - x2
-        x2x1 = np.linalg.norm(lsrl)
-        dists = np.linalg.norm(
-            np.cross(x1x0, x2x0), axis=1
-        ) / x2x1
-        mvar[i] = np.median(dists)
+    #     lsrl = v[0]
+    #     x1 = np.expand_dims(center, 0)
+    #     x2 = x1 + np.expand_dims(lsrl, 0)
+    #     x1x0 = data - x1
+    #     x2x0 = data - x2
+    #     x2x1 = np.linalg.norm(lsrl)
+    #     dists = np.linalg.norm(
+    #         np.cross(x1x0, x2x0), axis=1
+    #     ) / x2x1
+    #     mvar[i] = np.median(dists)
     
-    ax = plt.axes(projection='3d')
-    ax.view_init(0, 0)
-    ax.set_zlim(0, 1000)
-    ax.scatter(
-        cluspts[:, 0],
-        cluspts[:, 1],
-        img_3D[cluspts[:, 0], cluspts[:, 1], 2],
-        c=mvar)
-    plt.show()
+    # ax = plt.axes(projection='3d')
+    # ax.view_init(0, 0)
+    # ax.set_zlim(0, 1000)
+    # ax.scatter(
+    #     cluspts[:, 0],
+    #     cluspts[:, 1],
+    #     img_3D[cluspts[:, 0], cluspts[:, 1], 2],
+    #     c=mvar)
+    # plt.show()
 
 
     "First Draft"
