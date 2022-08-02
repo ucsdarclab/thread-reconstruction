@@ -64,10 +64,10 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     
     # initialize 3D spline
     d = 5
-    num_ctrl = init_pts.shape[0] // d
+    num_ctrl = init_pts.shape[0] // (d-1)
 
     u = np.arange(0, init_pts.shape[0])
-    key_weight = 1#init_pts.shape[0] / keypoints.shape[0]
+    key_weight = init_pts.shape[0] / keypoints.shape[0]
     w = np.ones_like(u)
     w[keypoint_idxs] = key_weight
     knots = np.concatenate(
@@ -82,6 +82,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     k = tck[2]
     tck = interp.BSpline(t, c, k)
     init_spline = tck(np.linspace(0, u[-1], 150))
+    print("initial loss: " + str(shape_loss(tuple(c), knots, d)))
 
     constraints = []
     for key_idx in keypoint_idxs:
@@ -91,20 +92,22 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
                 "fun" : keypt_constr,
                 "args" : (knots, d, init_pts[key_idx], key_idx, axis)
             })
+            print(keypt_constr(tuple(c), knots, d, init_pts[key_idx], key_idx, axis))
 
     final = scipy.optimize.minimize(
         shape_loss,
         c,
-        method = 'SLSQP',
+        method = 'COBYLA',
         args=(knots, d),
         constraints=constraints,
-        options= {"maxiter" : 2}
+        options= {"maxiter" : 1}
     )
     print("success:", final.success)
     print("status:", final.status)
     print("message:", final.message)
-    print("num iter:", final.nit)
+    # print("num iter:", final.nit)
     b = np.array([val for val in final.x]).reshape((-1, 3))
+    print("final loss:" + str(shape_loss(tuple(b), knots, d)))
     tck = interp.BSpline(knots, b, d)
     final_spline = tck(np.linspace(0, u[-1], 150))
     plt.figure(1)
@@ -147,6 +150,20 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         final_spline[:, 1],
         final_spline[:, 2],
         c="b")
+    plt.figure(3)
+    ax3 = plt.axes(projection='3d')
+    ax3.view_init(0, 0)
+    ax3.set_zlim(0, 500)
+    ax3.plot(
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="r")
+    ax3.plot(
+        final_spline[:, 0],
+        final_spline[:, 1],
+        final_spline[:, 2],
+        c="b")
     plt.show()
 
     # plt.imshow(img1, cmap="gray")
@@ -178,7 +195,7 @@ def shape_loss(args, knots, d):
         g = speed ** 3
         dg = 3 * speed * np.dot(dsp, d2sp)
         dkappa = (df*g - f*dg)/(g**2)
-        dkappa_ds = dkappa**2 / speed
+        dkappa_ds = (dkappa / speed)**2
 
         # compute arc-length derivative of torsion
         j = np.dot(h, d3sp)
@@ -186,14 +203,15 @@ def shape_loss(args, knots, d):
         k = np.dot(h, h)
         dk = 2*np.dot(h, dh)
         dtau = (dj*k - j*dk)/(k**2)
-        dtau_ds = dtau**2 / speed
+        dtau_ds = (dtau / speed)**2
 
+        # print(dkappa_ds+dtau_ds)
         return dkappa_ds + dtau_ds
     val = scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
-    print(val)
+    # print(val)
     return val#scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
 
-DIST_CONSTR = [2, 2, 6]
+DIST_CONSTR = [3, 3, 6]
 def keypt_constr(args, knots, d, keypt, key_idx, axis):
     b = np.array([val for val in args]).reshape((-1, 3))
     tck = interp.BSpline(knots, b, d)
@@ -204,6 +222,44 @@ def keypt_constr(args, knots, d, keypt, key_idx, axis):
     else:
         return 1/(dist + 1e-5)
 
+def test():
+    # initialize 3D spline
+    d = 5
+    u = np.sort(np.random.rand(80))#np.linspace(0, 1, 80)
+    x = 100*np.cos(2*np.pi*u) + np.random.rand(80)*10
+    y = 100*np.cos(2*np.pi*u) + np.random.rand(80)*10
+    z = u*100 + np.random.rand(80)*10
+    init_pts = np.stack((x, y, z))
+    num_ctrl = init_pts.shape[1] // d
+
+    # key_weight = 1#init_pts.shape[0] / keypoints.shape[0]
+    w = np.ones_like(u)
+    # w[keypoint_idxs] = key_weight
+    knots = np.concatenate(
+        (np.repeat(u[0], d),
+        np.linspace(u[0], u[-1], num_ctrl),
+        np.repeat(u[-1], d))
+    )
+    tck, *_ = interp.splprep(init_pts, w=w, u=u, k=d, task=-1, t=knots)
+    t = tck[0]
+    c = np.array(tck[1]).T
+    k = tck[2]
+    tck = interp.BSpline(t, c, k)
+    init_spline = tck(np.linspace(0, u[-1], 150))
+
+    shape_loss(tuple(c), knots, d)
+    # return
+
+    plt.figure(1)
+    ax1 = plt.axes(projection='3d')
+    ax1.view_init(0, 0)
+    # ax1.set_zlim(0, 500)
+    ax1.plot(
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="b")
+    plt.show()
 
 if __name__ == "__main__":
     file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
@@ -213,4 +269,5 @@ if __name__ == "__main__":
     img2 = cv2.imread(file2)
     img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
+    # test()
     curve_fit(img1, img_3D, keypoints, grow_paths, order)
