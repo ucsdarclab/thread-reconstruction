@@ -4,6 +4,8 @@ import numpy as np
 import cv2
 from prob_cloud import prob_cloud
 import scipy.interpolate as interp
+import scipy.optimize
+import scipy.integrate
 
 def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
@@ -79,32 +81,81 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     c = np.array(tck[1]).T
     k = tck[2]
     tck = interp.BSpline(t, c, k)
-    spline = tck(np.linspace(0, u[-1], 150))
+    init_spline = tck(np.linspace(0, u[-1], 150))
 
-    ax = plt.axes(projection='3d')
-    ax.view_init(0, 0)
-    ax.set_zlim(0, 500)
-    ax.scatter(
+    constraints = []
+    for key_idx in keypoint_idxs:
+        for axis in range(3):
+            constraints.append({
+                "type" : "ineq",
+                "fun" : keypt_constr,
+                "args" : (knots, d, init_pts[key_idx], key_idx, axis)
+            })
+
+    final = scipy.optimize.minimize(
+        shape_loss,
+        c,
+        method = 'SLSQP',
+        args=(knots, d),
+        constraints=constraints,
+        options= {"maxiter" : 2}
+    )
+    print("success:", final.success)
+    print("status:", final.status)
+    print("message:", final.message)
+    print("num iter:", final.nit)
+    b = np.array([val for val in final.x]).reshape((-1, 3))
+    tck = interp.BSpline(knots, b, d)
+    final_spline = tck(np.linspace(0, u[-1], 150))
+    plt.figure(1)
+    ax1 = plt.axes(projection='3d')
+    ax1.view_init(0, 0)
+    ax1.set_zlim(0, 500)
+    ax1.scatter(
         segpix1[:, 0],
         segpix1[:, 1],
         img_3D[segpix1[:, 0], segpix1[:, 1], 2],
         s=1, c="r", alpha=0.1)
-    ax.plot(
-        spline[:, 0],
-        spline[:, 1],
-        spline[:, 2],
+    # ax.scatter(
+    #     keypoints[:, 0],
+    #     keypoints[:, 1],
+    #     keypoints[:, 2],
+    #     c="r"
+    # )
+    ax1.plot(
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="b")
+    plt.figure(2)
+    ax2 = plt.axes(projection='3d')
+    ax2.view_init(0, 0)
+    ax2.set_zlim(0, 500)
+    ax2.scatter(
+        segpix1[:, 0],
+        segpix1[:, 1],
+        img_3D[segpix1[:, 0], segpix1[:, 1], 2],
+        s=1, c="r", alpha=0.1)
+    # ax.scatter(
+    #     keypoints[:, 0],
+    #     keypoints[:, 1],
+    #     keypoints[:, 2],
+    #     c="r"
+    # )
+    ax2.plot(
+        final_spline[:, 0],
+        final_spline[:, 1],
+        final_spline[:, 2],
         c="b")
     plt.show()
-    # plt.plot(spline[:, 1], spline[:, 0], c="r")
-    # plt.show()
 
     # plt.imshow(img1, cmap="gray")
     # plt.scatter(init_pts[:, 1], init_pts[:, 0], c=np.arange(0, init_pts.shape[0]), cmap="hot")
     # plt.scatter(keypoints[:, 1], keypoints[:, 0], c="r")
     # plt.show()
 
-def shape_loss(args, knots, d, t_star):
-    b = np.array([val for val in args])
+def shape_loss(args, knots, d):
+    b = np.array([val for val in args]).reshape((-1, 3))
     spline = interp.BSpline(knots, b, d)
     dspline = spline.derivative()
     d2spline = dspline.derivative()
@@ -127,7 +178,7 @@ def shape_loss(args, knots, d, t_star):
         g = speed ** 3
         dg = 3 * speed * np.dot(dsp, d2sp)
         dkappa = (df*g - f*dg)/(g**2)
-        dkappa_ds = dkappa / speed
+        dkappa_ds = dkappa**2 / speed
 
         # compute arc-length derivative of torsion
         j = np.dot(h, d3sp)
@@ -135,11 +186,24 @@ def shape_loss(args, knots, d, t_star):
         k = np.dot(h, h)
         dk = 2*np.dot(h, dh)
         dtau = (dj*k - j*dk)/(k**2)
-        dtau_ds = dtau / speed
+        dtau_ds = dtau**2 / speed
 
         return dkappa_ds + dtau_ds
-    
-    return scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
+    val = scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
+    print(val)
+    return val#scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
+
+DIST_CONSTR = [2, 2, 6]
+def keypt_constr(args, knots, d, keypt, key_idx, axis):
+    b = np.array([val for val in args]).reshape((-1, 3))
+    tck = interp.BSpline(knots, b, d)
+    splpt = tck(key_idx)
+    dist = np.abs(keypt[axis] - splpt[axis])
+    if dist > DIST_CONSTR[axis]:
+        return -1*dist
+    else:
+        return 1/(dist + 1e-5)
+
 
 if __name__ == "__main__":
     file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
