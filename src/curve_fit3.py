@@ -30,6 +30,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             btwn_depths = img_3D[btwn_pts[:, 0], btwn_pts[:, 1], 2]
             num_samples = btwn_pts.shape[0] // size_thresh
             # remove outliers
+            # TODO do we need to remove outliers anymore?
             quartiles = np.percentile(btwn_depths, [25, 75])
             iqr = quartiles[1] - quartiles[0]
             low_clip = quartiles[0]-1.5*iqr < btwn_depths
@@ -40,7 +41,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             filtered_depths = btwn_depths[mask_idxs]
             filtered_pts = np.concatenate((filtered_pix, np.expand_dims(filtered_depths, 1)), axis=1)
             
-            # project filtered points onto line between keypoints
+            # project filtered points onto 2D line between keypoints
             p1 = keypoints[key_id, :2]
             p2 = keypoints[next_id, :2]
             p1p2 = p2 - p1
@@ -50,13 +51,19 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             # Choose evenly spaced points, based on projections
             pt2ord = np.argsort(proj)
             floor = interval_floor if interval_floor<np.max(proj) else np.min(proj)
+            p1d = keypoints[key_id, 2]
+            p2d = keypoints[next_id, 2]
+            p1p2d = p2d - p1d
             intervals = np.linspace(interval_floor, np.max(proj), num_samples)
             int_idx = 0
             for pt_idx in pt2ord:
                 if int_idx >= num_samples:
                     break
                 if proj[pt_idx] >= intervals[int_idx]:
-                    init_pts.append(filtered_pts[pt_idx])
+                    # Use linearly interpolated depth between keypoints
+                    interp_depth = p1d + p1p2d * proj[pt_idx] / np.linalg.norm(p1p2)
+                    interp_pt = np.append(filtered_pix[pt_idx], [[interp_depth]])
+                    init_pts.append(interp_pt)#filtered_pts[pt_idx])
                     int_idx += 1
     keypoint_idxs.append(len(init_pts))
     init_pts.append(keypoints[order[-1]])
@@ -66,6 +73,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     d = 5
     num_ctrl = init_pts.shape[0] // (d-1)
 
+    # TODO change parameterization based on prev projection values?
     u = np.arange(0, init_pts.shape[0])
     key_weight = init_pts.shape[0] / keypoints.shape[0]
     w = np.ones_like(u)
@@ -100,7 +108,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         method = 'COBYLA',
         args=(knots, d),
         constraints=constraints,
-        options= {"maxiter" : 1}
+        # options= {"maxiter" : 1}
     )
     print("success:", final.success)
     print("status:", final.status)
@@ -154,12 +162,12 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     ax3 = plt.axes(projection='3d')
     ax3.view_init(0, 0)
     ax3.set_zlim(0, 500)
-    ax3.plot(
+    ax3.scatter(
         init_spline[:, 0],
         init_spline[:, 1],
         init_spline[:, 2],
         c="r")
-    ax3.plot(
+    ax3.scatter(
         final_spline[:, 0],
         final_spline[:, 1],
         final_spline[:, 2],
@@ -194,8 +202,9 @@ def shape_loss(args, knots, d):
         df = np.dot(h, dh) / f
         g = speed ** 3
         dg = 3 * speed * np.dot(dsp, d2sp)
-        dkappa = (df*g - f*dg)/(g**2)
-        dkappa_ds = (dkappa / speed)**2
+        dkappa = (dh*g - h*dg)/(g**2)#(df*g - f*dg)/(g**2)
+        dkappa_ds = np.dot(dkappa, dkappa) / speed#(dkappa)**2 #/ speed
+
 
         # compute arc-length derivative of torsion
         j = np.dot(h, d3sp)
@@ -203,11 +212,13 @@ def shape_loss(args, knots, d):
         k = np.dot(h, h)
         dk = 2*np.dot(h, dh)
         dtau = (dj*k - j*dk)/(k**2)
-        dtau_ds = (dtau / speed)**2
+        dtau_ds = (dtau)**2 # / speed
 
         # print(dkappa_ds+dtau_ds)
-        return dkappa_ds + dtau_ds
-    val = scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
+        return dkappa_ds# + dtau_ds
+    x = knots[d:-1*d]
+    curve = [integrand(u) for u in x]
+    val = scipy.integrate.simpson(curve, x)#scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
     # print(val)
     return val#scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
 
