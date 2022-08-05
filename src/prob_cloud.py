@@ -67,6 +67,8 @@ def prob_cloud(img1, img2, calib):
     reliab_thresh = 0.9
     relidx = np.argwhere(reliab>reliab_thresh)
     relpts = segpix1[relidx[:, 0]]
+    relmap = np.zeros_like(img1)
+    relmap[relpts[:, 0], relpts[:, 1]] = reliab[relidx[:, 0]]
 
     # ax = plt.axes(projection='3d')
     # ax.view_init(0, 0)
@@ -134,21 +136,38 @@ def prob_cloud(img1, img2, calib):
    
 
     # Get statistics for each cluster
+    # TODO combine with below
     cluster_means = np.zeros((len(clusters), 3))
-    cluster_vars = np.zeros((len(clusters), 3))
+    cluster_stds = np.zeros((len(clusters), 3))
     cluster_sizes = np.zeros((len(clusters),))
-    cluster_rels = np.zeros((len(clusters),))
+    cluster_rels = []
     cluster_map = np.zeros_like(img1)
+    all_clustered = []
     for i, cluster in enumerate(clusters):
+        all_clustered += cluster
         cluster = np.array(cluster)
         cluster_means[i, :2] = np.mean(cluster, axis=0)
         cluster_means[i, 2] = np.mean(img_3D[cluster[:, 0], cluster[:, 1], 2])
-        cluster_vars[i, :2] = np.var(cluster, axis=0)
-        cluster_vars[i, 2] = np.var(img_3D[cluster[:, 0], cluster[:, 1], 2])
+        cluster_stds[i, :2] = np.std(cluster, axis=0)
+        cluster_stds[i, 2] = np.std(img_3D[cluster[:, 0], cluster[:, 1], 2])
         cluster_map[cluster[:, 0], cluster[:, 1]] = i+1
         cluster_sizes[i] = len(cluster)
-        # cluster_rels[i] = 
+        cluster_rels.append(relmap[cluster[:, 0], cluster[:, 1]])
+    all_clustered = np.array(all_clustered)
+    all_std = np.std(img_3D[all_clustered[:, 0], all_clustered[:, 1], 2])
     
+    # Use cluster statistics to form boundary constraints
+    # TODO Combine with above
+    bounds_rads = np.zeros((len(clusters),))
+    for i, cluster in enumerate(clusters):
+        cluster = np.array(cluster)
+        mean_rel = np.mean(cluster_rels[i])
+        size = cluster_sizes[i]
+        # TODO have different condition for max cluster size?
+        size_mult = 4 - 2 * (size - min_size) / (max_size - min_size)
+        rel_mult = 1 / (mean_rel**2 - 0.7)
+        bounds_rads[i] = all_std/4 + all_std/20 * size_mult * rel_mult
+
     # ax = plt.axes(projection='3d')
     # ax.view_init(0, 0)
     # ax.set_xlim(0, 480)
@@ -247,7 +266,7 @@ def prob_cloud(img1, img2, calib):
         
     # TODO
     "Join segments to form single ordering"
-    return img_3D, cluster_means, grow_paths, segments[-1] 
+    return img_3D, cluster_means, bounds_rads, grow_paths, segments[-1] 
     # plt.imshow(img1, cmap="gray")
     # plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
     # for segment in segments:

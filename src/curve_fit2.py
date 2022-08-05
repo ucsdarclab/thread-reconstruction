@@ -11,53 +11,42 @@ from prob_cloud import prob_cloud
 from pixel_ordering import order_pixels
 import sys
 
-def curve_fit2(img1, img2):
-    img_3D = stereo_match(img1, img2)
-    thresh = 226
-    seg_pix = np.argwhere(img1 <= thresh)
+def curve_fit(img1, img_3D, keypoints, bounds_rads, grow_paths, order):
+    seg_pix = np.argwhere(img1 <= 250)
+    lower = keypoints[order].copy()
+    lower[:, 2] -= bounds_rads
+    upper = keypoints[order].copy()
+    upper[:, 2] += bounds_rads
 
-    # TODO update method of getting depth_bounds if cloud changes
-    cloud = prob_cloud(img1, img2)
-    cloud = cloud.reshape(-1, 5, 3)
-    cloud_bounds = cloud[:, ::4, :]
+    # Ground truth, for testing
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
+    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
+    K1 = cv_file.getNode("K1").mat()
+    gt_pix = np.matmul(K1, gt_b.T).T
+    gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
+    gk = 3
+    gt_knots = np.concatenate(
+        (np.repeat(0, gk),
+        np.linspace(0, 1, gt_b.shape[0]-gk+1),
+        np.repeat(1, gk))
+    )
+    gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+    gt_spline = gt_tck(np.linspace(0, 1, 150))
 
-    # Reshape bounds into (row, col, thresh_idx, depth), where thresh_idx is 0 for low and 1 for high
-    # TODO sanity check?
-    bound_map = np.zeros((img1.shape[0], img1.shape[1], 2, 1))
-    bound_map[np.int32(cloud_bounds[:, 0, 0]), np.int32(cloud_bounds[:, 0, 1]), 0] = cloud_bounds[:, 0, 2:]
-    bound_map[np.int32(cloud_bounds[:, 1, 0]), np.int32(cloud_bounds[:, 1, 1]), 1] = cloud_bounds[:, 1, 2:]
-
-    order, _, steps = order_pixels(img1, img2)
-    cstep = 3
-    # organized as list of [row, col, lower, upper] arrays
-    depth_bounds = np.zeros((len(steps)//cstep+1, 4))
-    ord_idx = 0
-    for i in range(0, len(steps), cstep):
-        j = min(i+cstep, len(steps))
-        # squared sum of steps = number of pixels in current interval
-        interval = sum([val**2 for val in steps[i:j]])
-        pixels = order[:, ord_idx:ord_idx+interval]
-        depths = bound_map[pixels[0], pixels[1]]
-        mean = np.mean(depths, axis=(0, 2))
-        depth_bounds[i//cstep] = np.array([
-            pixels[0, interval//2],
-            pixels[1, interval//2],
-            mean[0],
-            mean[1]
-        ])
-
-        ord_idx += interval
-    # ax = plt.axes(projection="3d")
-    # cloud_bounds = cloud_bounds.reshape(-1, 3)
-    # ax.scatter(seg_pix[:, 0], seg_pix[:, 1], img_3D[seg_pix[:, 0], seg_pix[:, 1], 2], s=1)
-    # ax.plot(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 2], c="b")
-    # ax.plot(depth_bounds[:, 0], depth_bounds[:, 1], depth_bounds[:, 3], c="b")
+    ax = plt.axes(projection="3d")
+    ax.plot(
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
+    ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="r")
+    ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="b")
     keypts = np.array([0, 17, 27, 40, 49, 64, 72, 87, 100, 108, 115, 125, 133])
     # ax.scatter(depth_bounds[keypts, 0], depth_bounds[keypts, 1], (depth_bounds[keypts, 2] + depth_bounds[keypts, 3])/2, c="r")
     # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 3], c="orange")
     # ax.set_zlim(0, 1000)
-    # plt.show()
-    # return
+    plt.show()
+    return
     "constructing xy part of 3D spline"
     # TODO Refine
     sample_idxs = np.arange(0, 134)
@@ -301,10 +290,28 @@ def upper_bound(args, knots, d, t_star, constr, start, end):
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_1_left_rembg.png"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_1_right_rembg.png"#sys.argv[2]
-    img1 = cv2.imread(file1)
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(file2)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    curve_fit2(img1, img2)
+    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
+    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    # img1 = cv2.imread(file1)
+    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    # img2 = cv2.imread(file2)
+    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
+    fileb = "../Blender_imgs/blend_thread_1.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    imgb = cv2.imread(fileb)
+    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    img1 = imgb[:, :640]
+    img2 = imgb[:, 640:]
+    img1 = np.where(img1>=200, 255, img1)
+    img2 = np.where(img2>=200, 255, img2)
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # plt.figure(2)
+    # plt.imshow(img2, cmap="gray")
+    # plt.show()
+    # assert False
+    # test()
+    img_3D, keypoints, bounds_rads, grow_paths, order = prob_cloud(img1, img2, calib)
+
+    curve_fit(img1, img_3D, keypoints, bounds_rads, grow_paths, order)
