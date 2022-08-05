@@ -10,11 +10,11 @@ import sys
 import copy
 import time
 
-def prob_cloud(img1, img2):
+def prob_cloud(img1, img2, calib):
     pix_thresh = 250
     segpix1 = np.argwhere(img1<=pix_thresh)
     segpix2 = np.argwhere(img2<=pix_thresh)
-    img_3D = stereo_match(img1, img2)
+    disp_cv, img_3D = stereo_match(img1, img2, calib)
     img1 = np.float32(img1)
     img2 = np.float32(img2)
     
@@ -46,6 +46,9 @@ def prob_cloud(img1, img2):
         
         x = (next_best - best)/((best + 1e-7)*c_data)
         reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
+
+        if np.abs(disp - disp_cv[pix[0], pix[1]]) > 5:
+            reliab[i] /= 2
 
         # pixels should also match from right to left
         # pix[1] = pix[1] - disp
@@ -133,6 +136,8 @@ def prob_cloud(img1, img2):
     # Get statistics for each cluster
     cluster_means = np.zeros((len(clusters), 3))
     cluster_vars = np.zeros((len(clusters), 3))
+    cluster_sizes = np.zeros((len(clusters),))
+    cluster_rels = np.zeros((len(clusters),))
     cluster_map = np.zeros_like(img1)
     for i, cluster in enumerate(clusters):
         cluster = np.array(cluster)
@@ -141,10 +146,14 @@ def prob_cloud(img1, img2):
         cluster_vars[i, :2] = np.var(cluster, axis=0)
         cluster_vars[i, 2] = np.var(img_3D[cluster[:, 0], cluster[:, 1], 2])
         cluster_map[cluster[:, 0], cluster[:, 1]] = i+1
+        cluster_sizes[i] = len(cluster)
+        # cluster_rels[i] = 
     
     # ax = plt.axes(projection='3d')
     # ax.view_init(0, 0)
-    # ax.set_zlim(0, 1000)
+    # ax.set_xlim(0, 480)
+    # ax.set_ylim(0, 640)
+    # ax.set_zlim(0, 20)
     # ax.scatter(
     #     segpix1[:, 0],
     #     segpix1[:, 1],
@@ -156,7 +165,7 @@ def prob_cloud(img1, img2):
     #     cluster_means[:, 2],
     #     c="b")
     # plt.show()
-    # return
+    # assert False
 
     # "Solidify" clusters for ordering
     solid_clusters = copy.deepcopy(clusters)
@@ -238,7 +247,7 @@ def prob_cloud(img1, img2):
         
     # TODO
     "Join segments to form single ordering"
-    return img_3D, cluster_means, grow_paths, segments[0] 
+    return img_3D, cluster_means, grow_paths, segments[-1] 
     # plt.imshow(img1, cmap="gray")
     # plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
     # for segment in segments:

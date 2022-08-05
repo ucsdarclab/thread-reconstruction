@@ -37,6 +37,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             up_clip = btwn_depths < quartiles[1]+1.5*iqr
             mask = np.logical_and(low_clip, up_clip)
             mask_idxs = np.squeeze(np.argwhere(mask))
+            if mask_idxs.shape[0] < num_samples:
+                continue
             filtered_pix = btwn_pts[mask_idxs]
             filtered_depths = btwn_depths[mask_idxs]
             filtered_pts = np.concatenate((filtered_pix, np.expand_dims(filtered_depths, 1)), axis=1)
@@ -91,6 +93,64 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     tck = interp.BSpline(t, c, k)
     init_spline = tck(np.linspace(0, u[-1], 150))
     print("initial loss: " + str(shape_loss(tuple(c), knots, d)))
+
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
+    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
+    K1 = cv_file.getNode("K1").mat()
+    gt_pix = np.matmul(K1, gt_b.T).T
+    gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
+    gk = 3
+    gt_knots = np.concatenate(
+        (np.repeat(0, gk),
+        np.linspace(0, 1, gt_b.shape[0]-gk+1),
+        np.repeat(1, gk))
+    )
+    gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+    gt_spline = gt_tck(np.linspace(0, 1, 150))
+
+
+    plt.figure(1)
+    ax1 = plt.axes(projection='3d')
+    ax1.view_init(0, 0)
+    ax1.set_xlim(0, 480)
+    ax1.set_ylim(0, 640)
+    ax1.set_zlim(0, 20)
+    ax1.set_title("OpenCV vs gt")
+    ax1.scatter(
+        segpix1[:, 0],
+        segpix1[:, 1],
+        img_3D[segpix1[:, 0], segpix1[:, 1], 2],
+        s=1, c="r", alpha=0.2)
+    ax1.plot(
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
+    plt.figure(2)
+    ax2 = plt.axes(projection='3d')
+    ax2.view_init(0, 0)
+    ax2.set_xlim(0, 480)
+    ax2.set_ylim(0, 640)
+    ax2.set_zlim(0, 20)
+    ax2.set_title("keypoints and result vs gt")
+    ax2.scatter(
+        keypoints[:, 0],
+        keypoints[:, 1],
+        keypoints[:, 2],
+        c="r"
+    )
+    ax2.plot(
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="b")
+    ax2.plot(
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
+    plt.show()
+    return
 
     constraints = []
     for key_idx in keypoint_idxs:
@@ -273,12 +333,28 @@ def test():
     plt.show()
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
-    img1 = cv2.imread(file1)
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(file2)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
+    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
+    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    # img1 = cv2.imread(file1)
+    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    # img2 = cv2.imread(file2)
+    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
+    fileb = "../Blender_imgs/blend_thread_1.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    imgb = cv2.imread(fileb)
+    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    img1 = imgb[:, :640]
+    img2 = imgb[:, 640:]
+    img1 = np.where(img1>=200, 255, img1)
+    img2 = np.where(img2>=200, 255, img2)
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # plt.figure(2)
+    # plt.imshow(img2, cmap="gray")
+    # plt.show()
+    # assert False
     # test()
+    img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2, calib)
+
     curve_fit(img1, img_3D, keypoints, grow_paths, order)

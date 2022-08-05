@@ -116,9 +116,9 @@ gt = np.array([
     [369, 132, 106]
 ])
 
-def stereo_match(img1, img2):
+def stereo_match(img1, img2, calib):
     # Read in camera calibration values
-    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml", cv2.FILE_STORAGE_READ)
+    cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     D1 = cv_file.getNode("D1").mat()
     K2 = cv_file.getNode("K2").mat()
@@ -152,7 +152,7 @@ def stereo_match(img1, img2):
         disp_cv = sgbm.compute(img1, img2)
         disp_cv = np.float32(disp_cv) / 16.0
         img_3D = cv2.reprojectImageTo3D(disp_cv, Q)
-        return img_3D
+        return disp_cv, img_3D
     else:
         img1 = np.float32(img1)
         img2 = np.float32(img2)
