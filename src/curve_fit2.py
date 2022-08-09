@@ -5,23 +5,105 @@ import numpy as np
 import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
+import scipy.stats
 import cv2
 from stereo_matching import stereo_match
 from prob_cloud import prob_cloud
 from pixel_ordering import order_pixels
 import sys
 
-def curve_fit(img1, img_3D, keypoints, bounds_rads, grow_paths, order):
-    seg_pix = np.argwhere(img1 <= 250)
-    lower = keypoints[order].copy()
-    lower[:, 2] -= bounds_rads
-    upper = keypoints[order].copy()
-    upper[:, 2] += bounds_rads
+def curve_fit(img1, img_3D, keypoints, grow_paths, order):
+    # Gather more points between keypoints to get better data for curve initialization
+    init_pts = []
+    segpix1 = np.argwhere(img1<250)
+    # TODO Base this off of max_size of clusters from prob_cloud
+    size_thresh = 20
+    interval_floor = 8
+    keypoint_idxs = []
+    for key_ord, key_id in enumerate(order[:-1]):
+        # Find segmented points between keypoints
+        keypoint_idxs.append(len(init_pts))
+        init_pts.append(keypoints[key_id])
+        curr_growth = grow_paths[key_id]
+        next_id = order[key_ord+1]
+        next_growth = grow_paths[next_id]
+        btwn_pts = curr_growth.intersection(next_growth)
+
+        # gather extra points if keypoint distance is large
+        if len(btwn_pts) > size_thresh:
+            btwn_pts = np.array(list(btwn_pts))
+            btwn_depths = img_3D[btwn_pts[:, 0], btwn_pts[:, 1], 2]
+            num_samples = btwn_pts.shape[0] // size_thresh
+            # remove outliers
+            # TODO do we need to remove outliers anymore?
+            quartiles = np.percentile(btwn_depths, [25, 75])
+            iqr = quartiles[1] - quartiles[0]
+            low_clip = quartiles[0]-1.5*iqr < btwn_depths
+            up_clip = btwn_depths < quartiles[1]+1.5*iqr
+            mask = np.logical_and(low_clip, up_clip)
+            mask_idxs = np.squeeze(np.argwhere(mask))
+            if mask_idxs.shape[0] < num_samples:
+                continue
+            filtered_pix = btwn_pts[mask_idxs]
+            filtered_depths = btwn_depths[mask_idxs]
+            filtered_pts = np.concatenate((filtered_pix, np.expand_dims(filtered_depths, 1)), axis=1)
+            
+            # project filtered points onto 2D line between keypoints
+            p1 = keypoints[key_id, :2]
+            p2 = keypoints[next_id, :2]
+            p1p2 = p2 - p1
+            p1pt = filtered_pix - np.expand_dims(p1, 0)
+            proj = np.dot(p1pt, p1p2) / np.linalg.norm(p1p2)
+
+            # Choose evenly spaced points, based on projections
+            pt2ord = np.argsort(proj)
+            floor = interval_floor if interval_floor<np.max(proj) else np.min(proj)
+            p1d = keypoints[key_id, 2]
+            p2d = keypoints[next_id, 2]
+            p1p2d = p2d - p1d
+            intervals = np.linspace(interval_floor, np.max(proj), num_samples)
+            int_idx = 0
+            for pt_idx in pt2ord:
+                if int_idx >= num_samples:
+                    break
+                if proj[pt_idx] >= intervals[int_idx]:
+                    # Use linearly interpolated depth between keypoints
+                    # TODO remove interpolation?
+                    interp_depth = p1d + p1p2d * proj[pt_idx] / np.linalg.norm(p1p2)
+                    interp_pt = np.append(filtered_pix[pt_idx], [[interp_depth]])
+                    init_pts.append(filtered_pts[pt_idx]) #interp_pt)
+                    int_idx += 1
+    keypoint_idxs.append(len(init_pts))
+    init_pts.append(keypoints[order[-1]])
+    init_pts = np.array(init_pts)
+
+    # Construct bounds
+    lower = np.zeros_like(keypoints)
+    upper = np.zeros_like(keypoints)
+    fit_rad = keypoints.shape[0] // 10
+    for key_ord, key_id in enumerate(order):
+        # Fit line to range of points
+        start = max(key_ord-fit_rad, 0)
+        end = min(key_ord+fit_rad, len(order)-1)
+        x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
+        data = init_pts[x, 2]
+        slope, intercept, *_ = scipy.stats.linregress(x, data)
+
+        # Construct bound radius from current point
+        line_pts = slope * x + intercept
+        curr_line_pt = slope * keypoint_idxs[key_ord] + intercept
+        line_std = np.mean((data - line_pts)**2) ** (1/2)
+        bound_rad = np.abs(keypoints[key_id, 2] - curr_line_pt) * 1.5
+        bound_rad = max(bound_rad, line_std)
+        lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
+        upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
+        
 
     # Ground truth, for testing
     gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
+    m2pix = K1[0, 0] / 50e-3
     gt_pix = np.matmul(K1, gt_b.T).T
     gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
     gk = 3
@@ -34,13 +116,22 @@ def curve_fit(img1, img_3D, keypoints, bounds_rads, grow_paths, order):
     gt_spline = gt_tck(np.linspace(0, 1, 150))
 
     ax = plt.axes(projection="3d")
+    ax.set_xlim(0, 480)
+    ax.set_ylim(0, 640)
+    ax.set_zlim(5, 15)
     ax.plot(
         gt_spline[:, 1],
         gt_spline[:, 0],
         gt_spline[:, 2],
         c="g")
-    ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="r")
-    ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="b")
+    ax.scatter(
+        keypoints[:, 0],
+        keypoints[:, 1],
+        keypoints[:, 2],
+        s=10, c="r"
+    )
+    ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="turquoise")
+    ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="turquoise")
     keypts = np.array([0, 17, 27, 40, 49, 64, 72, 87, 100, 108, 115, 125, 133])
     # ax.scatter(depth_bounds[keypts, 0], depth_bounds[keypts, 1], (depth_bounds[keypts, 2] + depth_bounds[keypts, 3])/2, c="r")
     # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 3], c="orange")
@@ -312,6 +403,6 @@ if __name__ == "__main__":
     # plt.show()
     # assert False
     # test()
-    img_3D, keypoints, bounds_rads, grow_paths, order = prob_cloud(img1, img2, calib)
+    img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2, calib)
 
-    curve_fit(img1, img_3D, keypoints, bounds_rads, grow_paths, order)
+    curve_fit(img1, img_3D, keypoints, grow_paths, order)

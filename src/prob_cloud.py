@@ -135,8 +135,6 @@ def prob_cloud(img1, img2, calib):
             clusters.append(cluster)
    
 
-    # Get statistics for each cluster
-    # TODO combine with below
     cluster_means = np.zeros((len(clusters), 3))
     cluster_stds = np.zeros((len(clusters), 3))
     cluster_sizes = np.zeros((len(clusters),))
@@ -158,15 +156,15 @@ def prob_cloud(img1, img2, calib):
     
     # Use cluster statistics to form boundary constraints
     # TODO Combine with above
-    bounds_rads = np.zeros((len(clusters),))
-    for i, cluster in enumerate(clusters):
-        cluster = np.array(cluster)
-        mean_rel = np.mean(cluster_rels[i])
-        size = cluster_sizes[i]
-        # TODO have different condition for max cluster size?
-        size_mult = 4 - 2 * (size - min_size) / (max_size - min_size)
-        rel_mult = 1 / (mean_rel**2 - 0.7)
-        bounds_rads[i] = all_std/4 + all_std/20 * size_mult * rel_mult
+    # bounds_rads = np.zeros((len(clusters),))
+    # for i, cluster in enumerate(clusters):
+    #     cluster = np.array(cluster)
+    #     mean_rel = np.mean(cluster_rels[i])
+    #     size = cluster_sizes[i]
+    #     # TODO have different condition for max cluster size?
+    #     size_mult = 4 - 2 * (size - min_size) / (max_size - min_size)
+    #     rel_mult = 1 / (mean_rel**2 - 0.7)
+    #     bounds_rads[i] = all_std/4 + all_std/20 * size_mult * rel_mult
 
     # ax = plt.axes(projection='3d')
     # ax.view_init(0, 0)
@@ -266,7 +264,7 @@ def prob_cloud(img1, img2, calib):
         
     # TODO
     "Join segments to form single ordering"
-    return img_3D, cluster_means, bounds_rads, grow_paths, segments[-1] 
+    return img_3D, cluster_means, grow_paths, segments[-1] 
     # plt.imshow(img1, cmap="gray")
     # plt.scatter(cluster_means[:, 1], cluster_means[:, 0])
     # for segment in segments:
@@ -400,10 +398,20 @@ def prob_cloud(img1, img2, calib):
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
-    img1 = cv2.imread(file1)
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(file2)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    prob_cloud(img1, img2)
+    fileb = "../Blender_imgs/blend_thread_1.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    imgb = cv2.imread(fileb)
+    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    img1 = imgb[:, :640]
+    img2 = imgb[:, 640:]
+    img1 = np.where(img1>=200, 255, img1)
+    img2 = np.where(img2>=200, 255, img2)
+    
+    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
+    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
+    # img1 = cv2.imread(file1)
+    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    # img2 = cv2.imread(file2)
+    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    prob_cloud(img1, img2, calib)
