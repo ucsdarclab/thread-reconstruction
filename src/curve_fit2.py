@@ -115,29 +115,35 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     gt_tck = interp.BSpline(gt_knots, gt_b, gk)
     gt_spline = gt_tck(np.linspace(0, 1, 150))
 
-    ax = plt.axes(projection="3d")
-    ax.set_xlim(0, 480)
-    ax.set_ylim(0, 640)
-    ax.set_zlim(5, 15)
-    ax.plot(
-        gt_spline[:, 1],
-        gt_spline[:, 0],
-        gt_spline[:, 2],
-        c="g")
-    ax.scatter(
-        keypoints[:, 0],
-        keypoints[:, 1],
-        keypoints[:, 2],
-        s=10, c="r"
-    )
-    ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="turquoise")
-    ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="turquoise")
+    # ax = plt.axes(projection="3d")
+    # ax.set_xlim(0, 480)
+    # ax.set_ylim(0, 640)
+    # ax.set_zlim(5, 15)
+    # ax.plot(
+    #     gt_spline[:, 1],
+    #     gt_spline[:, 0],
+    #     gt_spline[:, 2],
+    #     c="g")
+    # ax.scatter(
+    #     keypoints[:, 0],
+    #     keypoints[:, 1],
+    #     keypoints[:, 2],
+    #     s=10, c="r"
+    # )
+    # ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
+    # ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
+    # u = np.arange(init_pts.shape[0])
+    # plt.plot(u, gt_tck(np.linspace(0, 1, u.shape[0]))[:, 2], c="g")
+    # plt.scatter(keypoint_idxs, keypoints[order, 2], c="r")
+    # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
+    # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
+    # plt.show()
+    # return
+
     keypts = np.array([0, 17, 27, 40, 49, 64, 72, 87, 100, 108, 115, 125, 133])
     # ax.scatter(depth_bounds[keypts, 0], depth_bounds[keypts, 1], (depth_bounds[keypts, 2] + depth_bounds[keypts, 3])/2, c="r")
     # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 3], c="orange")
     # ax.set_zlim(0, 1000)
-    plt.show()
-    return
     "constructing xy part of 3D spline"
     # TODO Refine
     sample_idxs = np.arange(0, 134)
@@ -307,13 +313,6 @@ def objective(args, knots, d, t_star):
     
     return scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
 
-def get_envelope(spline, t_star):
-    spline_b = spline(t_star)
-    b = spline.c
-    e_low = np.where(b<spline_b, b, spline_b)
-    e_top = np.where(b>spline_b, b, spline_b)
-    return e_low, e_top
-
 def start_constr(args, knots, d, start, der, A):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
@@ -351,31 +350,37 @@ def upper_bound(args, knots, d, t_star, constr, start, end):
         return neg_sum
     else:
         return np.sum(dists)
-# def lower_bound(args, knots, d, t_star, constr, start, end):
-#     b = np.array([val for val in args])
-#     tck = interp.BSpline(knots, b, d)
-#     e_low, _ = get_envelope(tck, t_star)
-#     e_interp = interp.interp1d(t_star, e_low)
-#     dists = e_interp(np.arange(start, end+1)) - constr
-#     neg_only = np.where(dists<0, dists, 0)
-#     neg_sum = np.sum(neg_only)
-#     if neg_sum < 0:
-#         return neg_sum
-#     else:
-#         return np.sum(dists)
 
-# def upper_bound(args, knots, d, t_star, constr, start, end):
-#     b = np.array([val for val in args])
-#     tck = interp.BSpline(knots, b, d)
-#     _, e_high = get_envelope(tck, t_star)
-#     e_interp = interp.interp1d(t_star, e_high)
-#     dists = constr - e_interp(np.arange(start, end+1))
-#     neg_only = np.where(dists<0, dists, 0)
-#     neg_sum = np.sum(neg_only)
-#     if neg_sum < 0:
-#         return neg_sum
-#     else:
-#         return np.sum(dists)
+def dspline_grads(b, knots, d):
+    tck = interp.BSpline(knots, b, d)
+    # Organize useful coefficients conveniently
+    Q1 = np.ones((b-1, b))
+    for i in range(Q1.shape[0]):
+        Q1[:, i] = d / (knots[i+d+1:] - knots[i+1:])
+    Q2 = np.ones((b-2, b-1))
+    for i in range(Q2.shape[0]):
+        Q2[:, i] = (d-1) / (knots[i+d+1:] - knots[i+2:])
+    Q3 = np.ones((b-3, b-2))
+    for i in range(Q3.shape[0]):
+        Q3[:, i] = (d-2) / (knots[i+d+1:] - knots[i+3:])
+
+    J0 = np.eye(b.shape[0])
+    J1 = Q1 * (J0[1:] - J0[:-1])
+    J2 = Q2 * (J1[1:] - J1[:-1])
+    J3 = Q3 * (J2[1:] - J2[:-1])
+
+    grad1 = []
+    grad2 = []
+    grad3 = []
+    for j in range(b.shape[0]):
+        tck1 = interp.Bspline(knots[1:-1], J1[:, j], d-1)
+        grad1.append(tck1)
+        tck2 = interp.Bspline(knots[2:-2], J2[:, j], d-2)
+        grad2.append(tck2)
+        tck3 = interp.Bspline(knots[3:-3], J3[:, j], d-3)
+        grad3.append(tck3)
+        
+    return grad1, grad2, grad3
 
     
 
