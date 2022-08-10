@@ -140,10 +140,69 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # plt.show()
     # return
 
-    keypts = np.array([0, 17, 27, 40, 49, 64, 72, 87, 100, 108, 115, 125, 133])
-    # ax.scatter(depth_bounds[keypts, 0], depth_bounds[keypts, 1], (depth_bounds[keypts, 2] + depth_bounds[keypts, 3])/2, c="r")
-    # ax.scatter(depth_bounds[17:27, 0], depth_bounds[17:27, 1], depth_bounds[17:27, 3], c="orange")
-    # ax.set_zlim(0, 1000)
+    "Set up optimization"
+    # initialize 3D spline
+    d = 4
+    num_ctrl = init_pts.shape[0] // d
+
+    # TODO change parameterization based on prev projection values?
+    u = np.arange(0, init_pts.shape[0])
+    key_weight = init_pts.shape[0] / keypoints.shape[0]
+    w = np.ones_like(u)
+    w[keypoint_idxs] = key_weight
+    knots = np.concatenate(
+        (np.repeat(0, d),
+        np.linspace(0, u[-1], num_ctrl),
+        np.repeat(u[-1], d))
+    )
+
+    low_constr = interp.interp1d(keypoint_idxs, lower[:, 2])
+    high_constr = interp.interp1d(keypoint_idxs, upper[:, 2])
+    center = (low_constr(u) + high_constr(u))/2
+    init_pts[:, 2] = center
+
+    tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
+
+    t = tck[0]
+    c = np.array(tck[1]).T
+    k = tck[2]
+    tck = interp.BSpline(t, c, k)
+    init_spline = tck(np.linspace(0, u[-1], 150))
+
+    # ax = plt.axes(projection="3d")
+    # ax.set_xlim(0, 480)
+    # ax.set_ylim(0, 640)
+    # ax.set_zlim(5, 15)
+    # ax.plot(
+    #     gt_spline[:, 1],
+    #     gt_spline[:, 0],
+    #     gt_spline[:, 2],
+    #     c="g")
+    # ax.plot(
+    #     init_spline[:, 0],
+    #     init_spline[:, 1],
+    #     init_spline[:, 2],
+    #     c="b")
+    # plt.show()
+    # plt.plot(u, tck(u)[:, 2], c="b")
+    # plt.scatter(keypoint_idxs, keypoints[order, 2], c="r")
+    # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
+    # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
+    # plt.show()
+
+    b = c[:, 2]
+    dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
+    return
+    
+
+
+
+
+
+
+    ###################################################################
+    "-----------OLD CODE BELOW---------------------------------------"
+    ###################################################################
     "constructing xy part of 3D spline"
     # TODO Refine
     sample_idxs = np.arange(0, 134)
@@ -353,18 +412,19 @@ def upper_bound(args, knots, d, t_star, constr, start, end):
 
 def dspline_grads(b, knots, d):
     tck = interp.BSpline(knots, b, d)
+    n = b.shape[0]
     # Organize useful coefficients conveniently
-    Q1 = np.ones((b-1, b))
-    for i in range(Q1.shape[0]):
-        Q1[:, i] = d / (knots[i+d+1:] - knots[i+1:])
-    Q2 = np.ones((b-2, b-1))
-    for i in range(Q2.shape[0]):
-        Q2[:, i] = (d-1) / (knots[i+d+1:] - knots[i+2:])
-    Q3 = np.ones((b-3, b-2))
-    for i in range(Q3.shape[0]):
-        Q3[:, i] = (d-2) / (knots[i+d+1:] - knots[i+3:])
+    Q1 = np.ones((n-1, n))
+    for j in range(Q1.shape[1]):
+        Q1[:, j] = d / (knots[d+1:-1] - knots[1:-1*(d+1)])
+    Q2 = np.ones((n-2, n))
+    for j in range(Q2.shape[1]):
+        Q2[:, j] = (d-1) / (knots[d+1:-2] - knots[2:-1*(d+1)])
+    Q3 = np.ones((n-3, n))
+    for j in range(Q3.shape[1]):
+        Q3[:, j] = (d-2) / (knots[d+1:-3] - knots[3:-1*(d+1)])
 
-    J0 = np.eye(b.shape[0])
+    J0 = np.eye(n)
     J1 = Q1 * (J0[1:] - J0[:-1])
     J2 = Q2 * (J1[1:] - J1[:-1])
     J3 = Q3 * (J2[1:] - J2[:-1])
@@ -372,12 +432,12 @@ def dspline_grads(b, knots, d):
     grad1 = []
     grad2 = []
     grad3 = []
-    for j in range(b.shape[0]):
-        tck1 = interp.Bspline(knots[1:-1], J1[:, j], d-1)
+    for j in range(n):
+        tck1 = interp.BSpline(knots[1:-1], J1[:, j], d-1)
         grad1.append(tck1)
-        tck2 = interp.Bspline(knots[2:-2], J2[:, j], d-2)
+        tck2 = interp.BSpline(knots[2:-2], J2[:, j], d-2)
         grad2.append(tck2)
-        tck3 = interp.Bspline(knots[3:-3], J3[:, j], d-3)
+        tck3 = interp.BSpline(knots[3:-3], J3[:, j], d-3)
         grad3.append(tck3)
         
     return grad1, grad2, grad3
