@@ -192,6 +192,76 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
 
     b = c[:, 2]
     dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
+
+    constraints = []
+    for p1, p2 in zip(u[:-1], u[1:]):
+        constraints.append(
+            {
+                "type":"ineq",
+                "fun":lower_bound,
+                "args":(knots, d, low_constr, p1, p2)
+            }
+        )
+        constraints.append(
+            {
+                "type":"ineq",
+                "fun":upper_bound,
+                "args":(knots, d, high_constr, p1, p2)
+            }
+        )
+    
+    
+    final = scipy.optimize.minimize(
+        objective,
+        b,
+        method = 'SLSQP',
+        jac=gradient,
+        args=(knots, d, dspline_db, d2spline_db, d3spline_db),
+        constraints=constraints
+    )
+    print("success:", final.success)
+    print("status:", final.status)
+    print("message:", final.message)
+    print("num iter:", final.nit)
+    b = np.array([val for val in final.x])
+    c[:, 2] = b
+    tck = interp.BSpline(t, c, k)
+    final_spline = tck(np.linspace(0, u[-1], 150))
+
+    plt.figure(1)
+    ax1 = plt.axes(projection="3d")
+    ax1.set_xlim(0, 480)
+    ax1.set_ylim(0, 640)
+    ax1.set_zlim(5, 15)
+    ax1.plot(
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
+    ax1.plot(
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="b")
+    plt.figure(2)
+    ax2 = plt.axes(projection="3d")
+    ax2.set_xlim(0, 480)
+    ax2.set_ylim(0, 640)
+    ax2.set_zlim(5, 15)
+    ax2.plot(
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
+    ax2.plot(
+        final_spline[:, 0],
+        final_spline[:, 1],
+        final_spline[:, 2],
+        c="b")
+    # ax2.scatter(keypoints[:, 0], keypoints[:, 1], keypoints[:, 2], c="r")
+    ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
+    ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
+    plt.show()
     return
     
 
@@ -355,7 +425,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
 
 
 
-def objective(args, knots, d):
+def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     b = np.array([val for val in args])
     spline = interp.BSpline(knots, b, d)
     dspline = spline.derivative()
@@ -372,7 +442,7 @@ def objective(args, knots, d):
     
     u = np.linspace(knots[0], knots[-1], 100)
     curve = [integrand(x) for x in u]
-    return scipy.integrate.simpson(curve, x)
+    return scipy.integrate.simpson(curve, u)
 
 def start_constr(args, knots, d, start, der, A):
     b = np.array([val for val in args])
@@ -386,7 +456,7 @@ def end_constr(args, knots, d, end, der, B):
     spline = interp.splev([end], tck, der)
     return spline - B
 
-def lower_bound(args, knots, d, t_star, constr, start, end):
+def lower_bound(args, knots, d, constr, start, end):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
     # e_low, _ = get_envelope(tck, t_star)
@@ -399,7 +469,7 @@ def lower_bound(args, knots, d, t_star, constr, start, end):
     else:
         return np.sum(dists)
 
-def upper_bound(args, knots, d, t_star, constr, start, end):
+def upper_bound(args, knots, d, constr, start, end):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
     # _, e_high = get_envelope(tck, t_star)
@@ -413,7 +483,6 @@ def upper_bound(args, knots, d, t_star, constr, start, end):
         return np.sum(dists)
 
 def dspline_grads(b, knots, d):
-    tck = interp.BSpline(knots, b, d)
     n = b.shape[0]
     # Organize useful coefficients conveniently
     Q1 = np.ones((n-1, n))
@@ -475,10 +544,11 @@ def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
         bottom = (1+ds**2)**(5/2)
         dbottom_db = 5/2*(1 + ds**2)**(3/2) * (2*ds) * Gs
         dK_db = (dtop_db*bottom - top*dbottom_db) / bottom**2
+        return dK_db
     
     u = np.linspace(knots[0], knots[-1], 100)
     curves = [[integrand(x, j) for x in u] for j in range(b.shape[0])]
-    return [scipy.integrate.simpson(curve, x) for curve in curves]
+    return [scipy.integrate.simpson(curve, u) for curve in curves]
 
 
 if __name__ == "__main__":
