@@ -355,7 +355,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
 
 
 
-def objective(args, knots, d, t_star):
+def objective(args, knots, d):
     b = np.array([val for val in args])
     spline = interp.BSpline(knots, b, d)
     dspline = spline.derivative()
@@ -370,7 +370,9 @@ def objective(args, knots, d, t_star):
             / (1+ds**2)**3
         return dKB**2 / (1+ds**2)**(1/2)
     
-    return scipy.integrate.quad(integrand, knots[0], knots[-1])[0]
+    u = np.linspace(knots[0], knots[-1], 100)
+    curve = [integrand(x) for x in u]
+    return scipy.integrate.simpson(curve, x)
 
 def start_constr(args, knots, d, start, der, A):
     b = np.array([val for val in args])
@@ -442,7 +444,41 @@ def dspline_grads(b, knots, d):
         
     return grad1, grad2, grad3
 
+def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
+    b = np.array([val for val in args])
+    spline = interp.BSpline(knots, b, d)
+    dspline = spline.derivative()
+    d2spline = dspline.derivative()
+    d3spline = d2spline.derivative()
+
+    def integrand(x, j):
+        ds = dspline(x)
+        d2s = d2spline(x)
+        d3s = d3spline(x)
+        Gs = grad1_spl[j](x)#[der(x) for der in grad1_spl]
+        G2s = grad2_spl[j](x)#[der(x) for der in grad2_spl]
+        G3s = grad3_spl[j](x)#[der(x) for der in grad3_spl]
+
+        dK = (d3s*(1+ds**2)**(3/2) - 3/2*(1+ds**2)**(1/2)*(2*ds)*d2s**2) \
+            / (1+ds**2)**3
+        dK_db = calc_dK_db(ds, d2s, d3s, Gs, G2s, G3s)
+
+        res = (2*dK*dK_db*(1 + ds**2)**(1/2) \
+            - (dK)**2 * (1/2)*(1+ds**2)**(-1/2) * 2*ds*Gs) \
+            / (1+ds**2)
+        return res
     
+    def calc_dK_db(ds, d2s, d3s, Gs, G2s, G3s):
+        top = d3s*(1 + ds**2) - 3*ds*(d2s)**2
+        dtop_db = G3s*(1 + ds**2) + d3s*(2*ds)*Gs \
+            - 3*(Gs*d2s**2 + ds*(2*d2s)*G2s)
+        bottom = (1+ds**2)**(5/2)
+        dbottom_db = 5/2*(1 + ds**2)**(3/2) * (2*ds) * Gs
+        dK_db = (dtop_db*bottom - top*dbottom_db) / bottom**2
+    
+    u = np.linspace(knots[0], knots[-1], 100)
+    curves = [[integrand(x, j) for x in u] for j in range(b.shape[0])]
+    return [scipy.integrate.simpson(curve, x) for curve in curves]
 
 
 if __name__ == "__main__":
