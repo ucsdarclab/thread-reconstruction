@@ -225,6 +225,8 @@ def prob_cloud(img1, img2, calib):
                         frontier.append(neigh)
                         grow_paths[c_id].add(t_neigh)
     
+    return img_3D, solid_clusters, solid_map, cluster_means, grow_paths, adjacents
+    
     # Extract curve segments, avoiding intersections
     segments = []
     # prematurely visit intersection keypoints
