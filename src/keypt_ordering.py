@@ -11,34 +11,48 @@ import time
 
 def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents):
     # Partition growpaths into individual disjoint parts
-    grow_lists = [np.array(list(path)) for path in grow_paths]
-    visiteds = [[False for i in len(path)] for path in grow_paths]
-    grow_part = [[] for i in range(len(grow_paths))]
+    # grow_lists = [np.array(list(path)) for path in grow_paths]
+    # visiteds = [[False for i in len(path)] for path in grow_paths]
+    grow_part = [[] for c_id in range(len(grow_paths))]
+    part_adjs = [[] for c_id in range(len(grow_paths))]
     DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
-    for i, (path, path_list) in enumerate(grow_paths, grow_lists):
+    for c_id, path in enumerate(grow_paths):
+        path_list = list(path)
+        visited = [False for i in len(path)]
+        pix2idx = {pix:i for i, pix in enumerate(path)}
         # visiteds[i][0] = True
         num_visited = 0
         source = 0
         # frontier = [path_list[0]]
-        while num_visited < len(visiteds[i]):
-            while visiteds[i][source]:
+        while num_visited < len(visited):
+            while visited[source]:
                 source += 1
-            broken_seg = True
             frontier = [path_list[source]]
-            visiteds[i][source] = True
+            visited[source] = True
             part = []
+            part_adj = set()
             while len(frontier) > 0:
                 curr = frontier.pop(0)
                 part.append(curr)
                 for d in DIRECTIONS:
                     neigh = curr + d
-                    # Only look at neighbors in grow path
-                    if tuple(neigh) not in path:
+                    t_neigh = tuple(neigh)
+                    # Don't include out-of-path neighbors in partition
+                    if t_neigh not in path:
+                        # Ignore OOB
+                        if neigh[0] < 0 or neigh[0] >= cluster_map.shape[0] or \
+                            neigh[1] < 0 or neigh[1] >= cluster_map.shape[1]:
+                            continue
+                        # See if partition is connected to any other clusters
+                        neigh_clust = cluster_map[t_neigh]
+                        if neigh_clust != 0 and neigh_clust != c_id+1:
+                            part_adj.add(neigh_clust-1)
                         continue
-                    if vmap[neigh[0], neigh[1]] == 1:
+                    n_idx = pix2idx[t_neigh]
+                    if visited[n_idx]:
                         continue
                     frontier.append(neigh)
-                    vmap[neigh[0], neigh[1]] = 1
+                    visited[n_idx] = True
 
 
 
