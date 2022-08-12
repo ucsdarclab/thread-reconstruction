@@ -78,8 +78,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     init_pts = np.array(init_pts)
 
     # Construct bounds
-    lower = np.zeros_like(keypoints)
-    upper = np.zeros_like(keypoints)
+    lower = np.zeros((len(order), 3))
+    upper = np.zeros((len(order), 3))
     fit_rad = keypoints.shape[0] // 10
     for key_ord, key_id in enumerate(order):
         # Fit line to range of points
@@ -100,20 +100,20 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         
 
     # Ground truth, for testing
-    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
-    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
-    K1 = cv_file.getNode("K1").mat()
-    m2pix = K1[0, 0] / 50e-3
-    gt_pix = np.matmul(K1, gt_b.T).T
-    gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
-    gk = 3
-    gt_knots = np.concatenate(
-        (np.repeat(0, gk),
-        np.linspace(0, 1, gt_b.shape[0]-gk+1),
-        np.repeat(1, gk))
-    )
-    gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-    gt_spline = gt_tck(np.linspace(0, 1, 150))
+    # gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
+    # cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
+    # K1 = cv_file.getNode("K1").mat()
+    # m2pix = K1[0, 0] / 50e-3
+    # gt_pix = np.matmul(K1, gt_b.T).T
+    # gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
+    # gk = 3
+    # gt_knots = np.concatenate(
+    #     (np.repeat(0, gk),
+    #     np.linspace(0, 1, gt_b.shape[0]-gk+1),
+    #     np.repeat(1, gk))
+    # )
+    # gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+    # gt_spline = gt_tck(np.linspace(0, 1, 150))
 
     # ax = plt.axes(projection="3d")
     # ax.set_xlim(0, 480)
@@ -143,7 +143,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     "Set up optimization"
     # initialize 3D spline
     d = 4
-    num_ctrl = init_pts.shape[0] // d
+    num_ctrl = init_pts.shape[0] // (2*d)
+    print(num_ctrl)
 
     # TODO change parameterization based on prev projection values?
     u = np.arange(0, init_pts.shape[0])
@@ -191,22 +192,24 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # plt.show()
 
     b = c[:, 2]
-    dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
+    spline_db, dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
 
     constraints = []
-    for p1, p2 in zip(u[:-1], u[1:]):
+    for p in u:
         constraints.append(
             {
                 "type":"ineq",
                 "fun":lower_bound,
-                "args":(knots, d, low_constr, p1, p2)
+                "jac":lower_grad,
+                "args":(knots, d, low_constr, p, spline_db)
             }
         )
         constraints.append(
             {
                 "type":"ineq",
                 "fun":upper_bound,
-                "args":(knots, d, high_constr, p1, p2)
+                "jac":upper_grad,
+                "args":(knots, d, high_constr, p, spline_db)
             }
         )
     
@@ -217,7 +220,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         method = 'SLSQP',
         jac=gradient,
         args=(knots, d, dspline_db, d2spline_db, d3spline_db),
-        constraints=constraints
+        constraints=constraints,
+        options= {"maxiter" : 200}
     )
     print("success:", final.success)
     print("status:", final.status)
@@ -228,31 +232,31 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     tck = interp.BSpline(t, c, k)
     final_spline = tck(np.linspace(0, u[-1], 150))
 
-    plt.figure(1)
-    ax1 = plt.axes(projection="3d")
-    ax1.set_xlim(0, 480)
-    ax1.set_ylim(0, 640)
-    ax1.set_zlim(5, 15)
-    ax1.plot(
-        gt_spline[:, 1],
-        gt_spline[:, 0],
-        gt_spline[:, 2],
-        c="g")
-    ax1.plot(
-        init_spline[:, 0],
-        init_spline[:, 1],
-        init_spline[:, 2],
-        c="b")
-    plt.figure(2)
+    # plt.figure(1)
+    # ax1 = plt.axes(projection="3d")
+    # ax1.set_xlim(0, 480)
+    # ax1.set_ylim(0, 640)
+    # # ax1.set_zlim(5, 15)
+    # ax1.plot(
+    #     gt_spline[:, 1],
+    #     gt_spline[:, 0],
+    #     gt_spline[:, 2],
+    #     c="g")
+    # ax1.plot(
+    #     init_spline[:, 0],
+    #     init_spline[:, 1],
+    #     init_spline[:, 2],
+    #     c="b")
+    # plt.figure(2)
     ax2 = plt.axes(projection="3d")
     ax2.set_xlim(0, 480)
     ax2.set_ylim(0, 640)
-    ax2.set_zlim(5, 15)
+    ax2.set_zlim(0, 500)
     ax2.plot(
-        gt_spline[:, 1],
-        gt_spline[:, 0],
-        gt_spline[:, 2],
-        c="g")
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="turquoise")
     ax2.plot(
         final_spline[:, 0],
         final_spline[:, 1],
@@ -444,43 +448,35 @@ def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     curve = [integrand(x) for x in u]
     return scipy.integrate.simpson(curve, u)
 
-def start_constr(args, knots, d, start, der, A):
-    b = np.array([val for val in args])
-    tck = interp.BSpline(knots, b, d)
-    spline = interp.splev([start], tck, der)
-    return spline - A
+# def start_constr(args, knots, d, start, der, A):
+#     b = np.array([val for val in args])
+#     tck = interp.BSpline(knots, b, d)
+#     spline = interp.splev([start], tck, der)
+#     return spline - A
 
-def end_constr(args, knots, d, end, der, B):
-    b = np.array([val for val in args])
-    tck = interp.BSpline(knots, b, d)
-    spline = interp.splev([end], tck, der)
-    return spline - B
+# def end_constr(args, knots, d, end, der, B):
+#     b = np.array([val for val in args])
+#     tck = interp.BSpline(knots, b, d)
+#     spline = interp.splev([end], tck, der)
+#     return spline - B
 
-def lower_bound(args, knots, d, constr, start, end):
+def lower_bound(args, knots, d, constr, x, grad):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
-    # e_low, _ = get_envelope(tck, t_star)
-    # e_interp = interp.interp1d(t_star, e_low)
-    dists = tck([start, end]) - constr([start, end])#e_interp([start, end]) - constr([start, end])
-    neg_only = np.where(dists<0, dists, 0)
-    neg_sum = np.sum(neg_only)
-    if neg_sum < 0:
-        return neg_sum
-    else:
-        return np.sum(dists)
+    dist = tck(x) - constr(x)
+    return dist
 
-def upper_bound(args, knots, d, constr, start, end):
+def lower_grad(args, knots, d, constr, x, grad):
+    return [der(x) for der in grad]
+
+def upper_bound(args, knots, d, constr, x, grad):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
-    # _, e_high = get_envelope(tck, t_star)
-    # e_interp = interp.interp1d(t_star, e_high)
-    dists = constr([start, end]) - tck([start, end])#e_interp([start, end])
-    neg_only = np.where(dists<0, dists, 0)
-    neg_sum = np.sum(neg_only)
-    if neg_sum < 0:
-        return neg_sum
-    else:
-        return np.sum(dists)
+    dist = constr(x) - tck(x)
+    return dist
+
+def upper_grad(args, knots, d, constr, x, grad):
+    return [-1*der(x) for der in grad]
 
 def dspline_grads(b, knots, d):
     n = b.shape[0]
@@ -500,10 +496,13 @@ def dspline_grads(b, knots, d):
     J2 = Q2 * (J1[1:] - J1[:-1])
     J3 = Q3 * (J2[1:] - J2[:-1])
 
+    grad0 = []
     grad1 = []
     grad2 = []
     grad3 = []
     for j in range(n):
+        tck0 = interp.BSpline(knots, J0[:, j], d)
+        grad0.append(tck0)
         tck1 = interp.BSpline(knots[1:-1], J1[:, j], d-1)
         grad1.append(tck1)
         tck2 = interp.BSpline(knots[2:-2], J2[:, j], d-2)
@@ -511,7 +510,7 @@ def dspline_grads(b, knots, d):
         tck3 = interp.BSpline(knots[3:-3], J3[:, j], d-3)
         grad3.append(tck3)
         
-    return grad1, grad2, grad3
+    return grad0, grad1, grad2, grad3
 
 def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     b = np.array([val for val in args])
@@ -552,21 +551,22 @@ def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
 
 
 if __name__ == "__main__":
-    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
-    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
-    # img1 = cv2.imread(file1)
-    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    # img2 = cv2.imread(file2)
-    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
+    file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    img1 = cv2.imread(file1)
+    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    img2 = cv2.imread(file2)
+    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
-    fileb = "../Blender_imgs/blend_thread_1.jpg"
-    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
-    imgb = cv2.imread(fileb)
-    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-    img1 = imgb[:, :640]
-    img2 = imgb[:, 640:]
-    img1 = np.where(img1>=200, 255, img1)
-    img2 = np.where(img2>=200, 255, img2)
+    # fileb = "../Blender_imgs/blend_thread_1.jpg"
+    # calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    # imgb = cv2.imread(fileb)
+    # imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    # img1 = imgb[:, :640]
+    # img2 = imgb[:, 640:]
+    # img1 = np.where(img1>=200, 255, img1)
+    # img2 = np.where(img2>=200, 255, img2)
     # plt.figure(1)
     # plt.imshow(img1, cmap="gray")
     # plt.figure(2)
