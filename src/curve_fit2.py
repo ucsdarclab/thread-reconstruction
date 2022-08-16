@@ -10,6 +10,7 @@ import cv2
 from stereo_matching import stereo_match
 from prob_cloud import prob_cloud
 from pixel_ordering import order_pixels
+from keypt_ordering import keypt_ordering
 import sys
 
 def curve_fit(img1, img_3D, keypoints, grow_paths, order):
@@ -100,20 +101,20 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         
 
     # Ground truth, for testing
-    # gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
-    # cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
-    # K1 = cv_file.getNode("K1").mat()
-    # m2pix = K1[0, 0] / 50e-3
-    # gt_pix = np.matmul(K1, gt_b.T).T
-    # gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
-    # gk = 3
-    # gt_knots = np.concatenate(
-    #     (np.repeat(0, gk),
-    #     np.linspace(0, 1, gt_b.shape[0]-gk+1),
-    #     np.repeat(1, gk))
-    # )
-    # gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-    # gt_spline = gt_tck(np.linspace(0, 1, 150))
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
+    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
+    K1 = cv_file.getNode("K1").mat()
+    m2pix = K1[0, 0] / 50e-3
+    gt_pix = np.matmul(K1, gt_b.T).T
+    gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
+    gk = 3
+    gt_knots = np.concatenate(
+        (np.repeat(0, gk),
+        np.linspace(0, 1, gt_b.shape[0]-gk+1),
+        np.repeat(1, gk))
+    )
+    gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+    gt_spline = gt_tck(np.linspace(0, 1, 150))
 
     # ax = plt.axes(projection="3d")
     # ax.set_xlim(0, 480)
@@ -251,12 +252,12 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     ax2 = plt.axes(projection="3d")
     ax2.set_xlim(0, 480)
     ax2.set_ylim(0, 640)
-    ax2.set_zlim(0, 500)
+    ax2.set_zlim(5, 15)
     ax2.plot(
-        init_spline[:, 0],
-        init_spline[:, 1],
-        init_spline[:, 2],
-        c="turquoise")
+        gt_spline[:, 1],
+        gt_spline[:, 0],
+        gt_spline[:, 2],
+        c="g")
     ax2.plot(
         final_spline[:, 0],
         final_spline[:, 1],
@@ -390,22 +391,22 @@ def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
-    img1 = cv2.imread(file1)
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(file2)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
+    # file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
+    # file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
+    # img1 = cv2.imread(file1)
+    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    # img2 = cv2.imread(file2)
+    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
-    # fileb = "../Blender_imgs/blend_thread_1.jpg"
-    # calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
-    # imgb = cv2.imread(fileb)
-    # imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-    # img1 = imgb[:, :640]
-    # img2 = imgb[:, 640:]
-    # img1 = np.where(img1>=200, 255, img1)
-    # img2 = np.where(img2>=200, 255, img2)
+    fileb = "../Blender_imgs/blend_thread_1.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    imgb = cv2.imread(fileb)
+    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    img1 = imgb[:, :640]
+    img2 = imgb[:, 640:]
+    img1 = np.where(img1>=200, 255, img1)
+    img2 = np.where(img2>=200, 255, img2)
     # plt.figure(1)
     # plt.imshow(img1, cmap="gray")
     # plt.figure(2)
@@ -413,6 +414,7 @@ if __name__ == "__main__":
     # plt.show()
     # assert False
     # test()
-    img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2, calib)
+    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = prob_cloud(img1, img2, calib)
+    img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
 
     curve_fit(img1, img_3D, keypoints, grow_paths, order)

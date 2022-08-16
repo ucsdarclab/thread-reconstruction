@@ -74,6 +74,67 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     #     if 0 in adj_nums:
     #         plt.show()
 
+    # Extract curve segments, avoiding intersections
+    segments = []
+    # prematurely visit intersection keypoints
+    visited = [0 if len(neighs) <= 2 else 1 for neighs in adjacents]
+    outer_frontier = [c_id for c_id, neighs in enumerate(adjacents) if len(neighs) <= 2]
+    while True:
+        # Choose an unvisited source with only 1 unvisited neighbor
+        source = None
+        while len(outer_frontier) > 0:
+            c_id = outer_frontier.pop()
+            paths = 0
+            for n_id in adjacents[c_id]:
+                n_id = int(n_id)
+                if visited[n_id] != 1:
+                    paths += 1
+            if paths == 1:
+                source = c_id
+                break
+        # exit loop when no more curve segments can grow
+        if source == None:
+            break
+        
+        # graph search to get thread
+        frontier = [source]
+        visited[c_id] = 1
+        segment = []#keypoints[source]]
+        while len(frontier) > 0:
+            assert len(frontier) == 1, "Curve is not linked list"
+            curr = frontier.pop()
+            segment.append(curr)#keypoints[curr])
+            for neigh in adjacents[curr]:
+                neigh = int(neigh)
+                if visited[neigh] != 1:
+                    frontier.append(neigh)
+                    visited[neigh] = 1
+        segments.append(segment)
+
+    # Extend out endpoints
+    for segment in segments:
+        for side, endpt in enumerate([segment[0], segment[-1]]):
+            p_adjs = part_adjs[endpt]
+            for i, adjs in enumerate(p_adjs):
+                # a grow part with 0 adjacents is an endpoint part
+                if len(adjs) == 0:
+                    # Choose pixel in part that's farthest from keypoint as endpoint
+                    part = np.array(grow_parts[endpt][i])
+                    dists = np.linalg.norm(keypoints[endpt:endpt+1, :2] - part, axis=1)
+                    new_end = part[np.argmax(dists)]
+                    # Set depth to be the same as the current pixel
+                    new_end = np.array([new_end[0], new_end[1], keypoints[endpt, 2]])
+                    # Add to segment and keypoint set
+                    if side == 0:
+                        segment.insert(0, keypoints.shape[0])
+                    else:
+                        segment.append(keypoints.shape[0])
+                    keypoints = np.concatenate((keypoints, np.expand_dims(new_end, 0)), axis=0)
+                    grow_paths.append({tuple(pix) for pix in part})
+
+    # TODO
+    "Join segments to form single ordering"
+    return img_3D, keypoints, grow_paths, segments[-1]
 
 if __name__ == "__main__":
     # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
