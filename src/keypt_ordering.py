@@ -13,12 +13,13 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     # Partition growpaths into individual disjoint parts
     # grow_lists = [np.array(list(path)) for path in grow_paths]
     # visiteds = [[False for i in len(path)] for path in grow_paths]
-    grow_part = [[] for c_id in range(len(grow_paths))]
+    grow_parts = [[] for c_id in range(len(grow_paths))]
     part_adjs = [[] for c_id in range(len(grow_paths))]
     DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+    min_size = 2
     for c_id, path in enumerate(grow_paths):
         path_list = list(path)
-        visited = [False for i in len(path)]
+        visited = [False for i in range(len(path))]
         pix2idx = {pix:i for i, pix in enumerate(path)}
         # visiteds[i][0] = True
         num_visited = 0
@@ -27,8 +28,9 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
         while num_visited < len(visited):
             while visited[source]:
                 source += 1
-            frontier = [path_list[source]]
+            frontier = [np.array(path_list[source])]
             visited[source] = True
+            num_visited += 1
             part = []
             part_adj = set()
             while len(frontier) > 0:
@@ -53,26 +55,43 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                         continue
                     frontier.append(neigh)
                     visited[n_idx] = True
-
+                    num_visited += 1
+            
+            if len(part) > min_size:
+                grow_parts[c_id].append(part)
+                part_adjs[c_id].append(part_adj)
+    
+    # for c_id, parts in enumerate(grow_parts):
+    #     plt.clf()
+    #     plt.imshow(img1, cmap="gray")
+    #     adj_nums = []
+    #     for i, part in enumerate(parts):
+    #         part = np.array(part)
+    #         plt.scatter(part[:, 1], part[:, 0])
+    #         adj_nums.append(len(part_adjs[c_id][i]))
+    #         plt.text(part[-1, 1], part[-1, 0], str(adj_nums[-1]))
+    #     plt.scatter(keypoints[c_id, 1], keypoints[c_id, 0], c="turquoise")
+    #     if 0 in adj_nums:
+    #         plt.show()
 
 
 if __name__ == "__main__":
-    file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
-    file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
-    img1 = cv2.imread(file1)
-    img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    img2 = cv2.imread(file2)
-    img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
+    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
+    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
+    # img1 = cv2.imread(file1)
+    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+    # img2 = cv2.imread(file2)
+    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+    # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
-    # fileb = "../Blender_imgs/blend_thread_1.jpg"
-    # calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
-    # imgb = cv2.imread(fileb)
-    # imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-    # img1 = imgb[:, :640]
-    # img2 = imgb[:, 640:]
-    # img1 = np.where(img1>=200, 255, img1)
-    # img2 = np.where(img2>=200, 255, img2)
+    fileb = "../Blender_imgs/blend_thread_1.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    imgb = cv2.imread(fileb)
+    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+    img1 = imgb[:, :640]
+    img2 = imgb[:, 640:]
+    img1 = np.where(img1>=200, 255, img1)
+    img2 = np.where(img2>=200, 255, img2)
     # plt.figure(1)
     # plt.imshow(img1, cmap="gray")
     # plt.figure(2)
