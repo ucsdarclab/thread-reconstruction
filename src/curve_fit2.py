@@ -101,8 +101,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         
 
     # Ground truth, for testing
-    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1_pos.npy")
-    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml", cv2.FILE_STORAGE_READ)
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1/blend1_4.npy")
+    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     m2pix = K1[0, 0] / 50e-3
     gt_pix = np.matmul(K1, gt_b.T).T
@@ -144,11 +144,17 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     "Set up optimization"
     # initialize 3D spline
     d = 4
-    num_ctrl = init_pts.shape[0] // (2*d)
+    num_ctrl = 15#init_pts.shape[0] // (2*d)
     print(num_ctrl)
 
     # TODO change parameterization based on prev projection values?
-    u = np.arange(0, init_pts.shape[0])
+    dists = np.linalg.norm(init_pts[1:] - init_pts[:-1], axis=1)
+    dists /= np.sum(dists)
+    u = np.zeros(init_pts.shape[0])
+    u[1:] = np.cumsum(dists) * dists.shape[0]
+    u[-1] = dists.shape[0]
+    # u = np.arange(0, init_pts.shape[0])
+
     key_weight = init_pts.shape[0] / keypoints.shape[0]
     w = np.ones_like(u)
     w[keypoint_idxs] = key_weight
@@ -158,8 +164,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         np.repeat(u[-1], d))
     )
 
-    low_constr = interp.interp1d(keypoint_idxs, lower[:, 2])
-    high_constr = interp.interp1d(keypoint_idxs, upper[:, 2])
+    low_constr = interp.interp1d(u[keypoint_idxs], lower[:, 2])
+    high_constr = interp.interp1d(u[keypoint_idxs], upper[:, 2])
     center = (low_constr(u) + high_constr(u))/2
     init_pts[:, 2] = center
 
@@ -264,8 +270,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         final_spline[:, 2],
         c="b")
     # ax2.scatter(keypoints[:, 0], keypoints[:, 1], keypoints[:, 2], c="r")
-    ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
-    ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
+    # ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
+    # ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
     plt.show()
 
 
@@ -399,8 +405,8 @@ if __name__ == "__main__":
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
-    fileb = "../Blender_imgs/blend_thread_1.jpg"
-    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
+    fileb = "../Blender_imgs/blend1/blend1_4.jpg"
+    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
     imgb = cv2.imread(fileb)
     imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
     img1 = imgb[:, :640]

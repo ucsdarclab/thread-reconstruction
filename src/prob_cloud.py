@@ -28,7 +28,7 @@ def prob_cloud(img1, img2, calib):
     c_shift = 0.8
     # TODO deal with out-of-bounds conditions
     for i in range(segpix1.shape[0]):
-        pix = segpix1[i]#.copy()#(segpix1[i][0], segpix1[i][1])
+        pix = segpix1[i]
         chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
         seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
 
@@ -49,19 +49,6 @@ def prob_cloud(img1, img2, calib):
 
         if np.abs(disp - disp_cv[pix[0], pix[1]]) > 5:
             reliab[i] /= 2
-
-        # pixels should also match from right to left
-        # pix[1] = pix[1] - disp
-        # chunk = img2[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
-        # seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(pix, 0) - rad
-        # energy = np.array([
-        #     np.sum(
-        #         (img2[seg[:,0], seg[:,1]] - img1[seg[:,0], seg[:,1] + off])**2
-        #     ) for off in range(max_disp)
-        # ])
-        # if not (disp <= np.argmin(energy) <= disp):
-        #     reliab[i] = 0
-
     
     # prune unreliable points
     reliab_thresh = 0.9
@@ -97,7 +84,7 @@ def prob_cloud(img1, img2, calib):
                            [1, 1], [-1, -1], [-1, 1], [1, -1]])
     # TODO make these relative to thread size?
     max_size = 20
-    min_size = 4
+    min_size = 5
     while len(vlist) > 0:
         cluster = []
         # choose source from remaining keypoint candidates
