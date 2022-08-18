@@ -8,7 +8,7 @@ import scipy.interpolate as interp
 import scipy.stats
 import cv2
 from stereo_matching import stereo_match
-from prob_cloud import prob_cloud
+from keypt_selection import keypt_selection
 from pixel_ordering import order_pixels
 from keypt_ordering import keypt_ordering
 import sys
@@ -17,7 +17,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
     segpix1 = np.argwhere(img1<250)
-    # TODO Base this off of max_size of clusters from prob_cloud
+    # TODO Base this off of max_size of clusters from keypt_selection
     size_thresh = 20
     interval_floor = 8
     keypoint_idxs = []
@@ -101,7 +101,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         
 
     # Ground truth, for testing
-    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend1/blend1_4.npy")
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend3/blend3_3.npy")
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     m2pix = K1[0, 0] / 50e-3
@@ -404,8 +404,8 @@ if __name__ == "__main__":
     # img2 = cv2.imread(file2)
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
-    # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
-    fileb = "../Blender_imgs/blend1/blend1_4.jpg"
+    # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
+    fileb = "../Blender_imgs/blend3/blend3_3.jpg"
     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
     imgb = cv2.imread(fileb)
     imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
@@ -420,7 +420,7 @@ if __name__ == "__main__":
     # plt.show()
     # assert False
     # test()
-    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = prob_cloud(img1, img2, calib)
+    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, calib)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
 
     curve_fit(img1, img_3D, keypoints, grow_paths, order)

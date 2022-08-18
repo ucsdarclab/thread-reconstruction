@@ -10,7 +10,7 @@ import sys
 import copy
 import time
 
-def prob_cloud(img1, img2, calib):
+def keypt_selection(img1, img2, calib):
     pix_thresh = 250
     segpix1 = np.argwhere(img1<=pix_thresh)
     segpix2 = np.argwhere(img2<=pix_thresh)
@@ -403,4 +403,4 @@ if __name__ == "__main__":
     # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
     # img2 = cv2.imread(file2)
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    prob_cloud(img1, img2, calib)
+    keypt_selection(img1, img2, calib)

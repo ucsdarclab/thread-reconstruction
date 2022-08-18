@@ -4,7 +4,7 @@ from matplotlib import collections
 from matplotlib import colors as mcolors
 import numpy as np
 import cv2
-from prob_cloud import prob_cloud
+from keypt_selection import keypt_selection
 import sys
 import copy
 import time
@@ -144,7 +144,7 @@ if __name__ == "__main__":
     # img2 = cv2.imread(file2)
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
-    # img_3D, keypoints, grow_paths, order = prob_cloud(img1, img2)
+    # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
     fileb = "../Blender_imgs/blend_thread_1.jpg"
     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
     imgb = cv2.imread(fileb)
@@ -161,6 +161,6 @@ if __name__ == "__main__":
     # assert False
     # test()
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = \
-        prob_cloud(img1, img2, calib)
+        keypt_selection(img1, img2, calib)
 
     keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
