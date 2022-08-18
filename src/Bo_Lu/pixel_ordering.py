@@ -36,8 +36,8 @@ def order_pixels(img_l, img_r):
                 roi.append((i,j))
     
     
-    curr_V = (259, 336)
-    par_V = (259, 337)
+    curr_V = (1, 117)#(288, 375)
+    par_V = (0, 117)#(288, 374)
 
     curve_set = np.zeros_like(img_l)
     curve_set[curr_V] = 1
@@ -179,8 +179,8 @@ def order_pixels(img_l, img_r):
 
     thresh = 238
     
-    curr_V = (259, 313)
-    par_V = (259, 314)
+    curr_V = (1, 93)#(288, 349)
+    par_V = (0, 93)#(288, 348)
 
     curve_set = np.zeros_like(img_r)
     curve_set[curr_V] = 1
