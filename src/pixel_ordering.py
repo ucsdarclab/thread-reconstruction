@@ -5,6 +5,7 @@ import cv2
 import math
 import random
 np.seterr(all="raise")
+
 """
 Tip locations:
     Left- x=337, y=259 (bottom rightmost pixel)
