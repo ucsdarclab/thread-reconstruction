@@ -11,7 +11,7 @@ Tip locations:
     Left- x=337, y=259 (bottom rightmost pixel)
     Right- x=314, y=259 (bottom rightmost pixel)
 """
-def order_pixels(img_l, img_r):
+def order_pixels(img_l, img_r, left_start, right_start):
     #""" #For finding image pixels
     # img = mpimg.imread("/Users/neelay/ARClabXtra/Sarah_imgs/thread_1_right_rembg.png")
     # TODO Uncomment
@@ -27,7 +27,7 @@ def order_pixels(img_l, img_r):
     # img_r = cv2.imread(img_dir + "thread_1_right_rembg.png")
     # img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     img_r_init = img_r.copy()
-    thresh = 226
+    thresh = 250
     upsilon = 10
     roi = []
     for i in range(-upsilon, upsilon+1):
@@ -36,8 +36,8 @@ def order_pixels(img_l, img_r):
                 roi.append((i,j))
     
     
-    curr_V = (1, 117)#(288, 375)
-    par_V = (0, 117)#(288, 374)
+    par_V = tuple(left_start[0])
+    curr_V = tuple(left_start[1])
 
     curve_set = np.zeros_like(img_l)
     curve_set[curr_V] = 1
@@ -179,8 +179,8 @@ def order_pixels(img_l, img_r):
 
     thresh = 238
     
-    curr_V = (1, 93)#(288, 349)
-    par_V = (0, 93)#(288, 348)
+    par_V = tuple(right_start[0])
+    curr_V = tuple(right_start[1])
 
     curve_set = np.zeros_like(img_r)
     curve_set[curr_V] = 1
