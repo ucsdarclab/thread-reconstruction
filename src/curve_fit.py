@@ -9,7 +9,6 @@ import scipy.stats
 import cv2
 from stereo_matching import stereo_match
 from keypt_selection import keypt_selection
-from pixel_ordering import order_pixels
 from keypt_ordering import keypt_ordering
 import sys
 
@@ -17,9 +16,9 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
     segpix1 = np.argwhere(img1<250)
-    # TODO Base this off of max_size of clusters from keypt_selection
-    size_thresh = 20
-    interval_floor = 8
+
+    size_thresh = segpix1.shape[0] // 100
+    interval_floor = size_thresh // 2
     keypoint_idxs = []
     for key_ord, key_id in enumerate(order[:-1]):
         # Find segmented points between keypoints
@@ -36,7 +35,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             btwn_depths = img_3D[btwn_pts[:, 0], btwn_pts[:, 1], 2]
             num_samples = btwn_pts.shape[0] // size_thresh
             # remove outliers
-            # TODO do we need to remove outliers anymore?
             quartiles = np.percentile(btwn_depths, [25, 75])
             iqr = quartiles[1] - quartiles[0]
             low_clip = quartiles[0]-1.5*iqr < btwn_depths
@@ -69,10 +67,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
                     break
                 if proj[pt_idx] >= intervals[int_idx]:
                     # Use linearly interpolated depth between keypoints
-                    # TODO remove interpolation?
-                    interp_depth = p1d + p1p2d * proj[pt_idx] / np.linalg.norm(p1p2)
-                    interp_pt = np.append(filtered_pix[pt_idx], [[interp_depth]])
-                    init_pts.append(filtered_pts[pt_idx]) #interp_pt)
+                    init_pts.append(filtered_pts[pt_idx])
                     int_idx += 1
     keypoint_idxs.append(len(init_pts))
     init_pts.append(keypoints[order[-1]])
@@ -101,7 +96,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         
 
     # Ground truth, for testing
-    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend3/blend3_3.npy")
+    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend2/blend2_2.npy")
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     m2pix = K1[0, 0] / 50e-3
@@ -147,7 +142,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     num_ctrl = 15#init_pts.shape[0] // (2*d)
     print(num_ctrl)
 
-    # TODO change parameterization based on prev projection values?
     dists = np.linalg.norm(init_pts[1:] - init_pts[:-1], axis=1)
     dists /= np.sum(dists)
     u = np.zeros(init_pts.shape[0])
@@ -405,7 +399,7 @@ if __name__ == "__main__":
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
-    fileb = "../Blender_imgs/blend3/blend3_3.jpg"
+    fileb = "../Blender_imgs/blend2/blend2_2.jpg"
     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
     imgb = cv2.imread(fileb)
     imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)

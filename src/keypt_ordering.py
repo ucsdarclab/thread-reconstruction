@@ -111,6 +111,20 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                     visited[neigh] = 1
         segments.append(segment)
 
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # for cluster in clusters:
+    #     cluster = np.array(cluster)
+    #     plt.scatter(cluster[:, 1], cluster[:, 0])
+    # plt.figure(2)
+    # plt.imshow(img1, cmap="gray")
+    # plt.scatter(keypoints[:, 1], keypoints[:, 0])
+    # for segment in segments:
+    #     segment = keypoints[np.array(segment)]
+    #     plt.scatter(segment[:, 1], segment[:, 0],\
+    #         c=np.arange(0, segment.shape[0]), cmap="hot")
+    # plt.show()
+    
     # Extend out endpoints
     for segment in segments:
         for side, endpt in enumerate([segment[0], segment[-1]]):

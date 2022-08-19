@@ -4,7 +4,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from mpl_toolkits import mplot3d
-from pixel_ordering import order_pixels
 import sys
 
 OPENCV_MATCHING = True
