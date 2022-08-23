@@ -233,6 +233,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     tck = interp.BSpline(t, c, k)
     final_spline = tck(np.linspace(0, u[-1], 150))
 
+    return tck
+
     # plt.figure(1)
     # ax1 = plt.axes(projection="3d")
     # ax1.set_xlim(0, 480)

@@ -19,7 +19,7 @@ def ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num):
 
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
         flags=cv2.CALIB_ZERO_DISPARITY)
-    
+
     ord1 = ord1.T
     ord2 = ord2.T
     min_len = min(ord1.shape[0], ord2.shape[0])
@@ -36,10 +36,11 @@ def ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num):
             pix2 = ord2[ord_cl]
             interp_pix = pix1 + (pix2 - pix1)*(ord_s - ord_fl)
             disp = ord1[phi, 1] - interp_pix[1]
-            depth_calc = np.matmul(Q, np.array([ord1[phi, 0], ord1[phi, 1], disp, 1]))
+            depth_calc = np.matmul(Q, np.array([ord1[phi, 1], ord1[phi, 0], disp, 1]))
             depth_calc /= depth_calc[3].copy() + 1e-7
             X_cloud[phi, i_s] = depth_calc[2]
     
+    return X_cloud
     gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
     cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -86,7 +87,7 @@ if __name__ == "__main__":
     # plt.show()
     # assert False
     folder_num = 1
-    file_num = 2
+    file_num = 1
     fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
     imgb = cv2.imread(fileb)
@@ -108,4 +109,6 @@ if __name__ == "__main__":
     # plt.show()
     print(ord1.shape)
     print(ord2.shape)
+    print(len(steps1))
+    print(len(steps2))
     ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
