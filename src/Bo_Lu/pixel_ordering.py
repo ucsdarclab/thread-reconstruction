@@ -28,7 +28,7 @@ def order_pixels(img_l, img_r, left_start, right_start):
     # img_r = cv2.cvtColor(img_r, cv2.COLOR_BGR2GRAY)
     img_r_init = img_r.copy()
     thresh = 250
-    upsilon = 10
+    upsilon = 5
     roi = []
     for i in range(-upsilon, upsilon+1):
         for j in range(-upsilon, upsilon+1):
@@ -67,7 +67,7 @@ def order_pixels(img_l, img_r, left_start, right_start):
     mu = 1
     tau_O = 2.6 * upsilon
     tau_V = 2*math.pi/3
-    max_chunksize = 5
+    max_chunksize = 2
     sum_thresh = 7
     while len(active):
         # calculate min cost active node
@@ -176,8 +176,6 @@ def order_pixels(img_l, img_r, left_start, right_start):
                 (not curve_set[node]) and (img_l[node] <= thresh)
                 ):
                 active.append(node)
-
-    thresh = 238
     
     par_V = tuple(right_start[0])
     curr_V = tuple(right_start[1])
@@ -201,15 +199,6 @@ def order_pixels(img_l, img_r, left_start, right_start):
             active.append(node)
     
     # Order pixels and stereo match
-    e_1 = 2
-    e_2 = 0.3
-    e_3 = 0.07
-    e_4 = 1
-    mu = 1
-    tau_O = 2.6 * upsilon
-    tau_V = 2*math.pi/3
-    max_chunksize = 5
-    sum_thresh = 7
     while len(active):
         # calculate min cost active node
         min_cost = np.Inf
