@@ -17,9 +17,9 @@ from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
 SIMULATION = True
-ERODE = True
+ERODE = False
 
-def fit_eval(img1, img2, calib, left_start, right_start, gt_tck):
+def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
     # Read in camera matrix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -38,7 +38,8 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck):
 
 
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
-    gt_spline = gt_tck(np.linspace(0, 1, 150))
+    if gt_tck is not None:
+        gt_spline = gt_tck(np.linspace(0, 1, 150))
 
     plt.figure(1)
     ax1 = plt.axes(projection='3d')
@@ -47,11 +48,12 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck):
         final_spline[:, 1],
         final_spline[:, 2]
     )
-    ax1.plot(
-        gt_spline[:, 0],
-        gt_spline[:, 1],
-        gt_spline[:, 2],
-        c="g")
+    if gt_tck is not None:
+        ax1.plot(
+            gt_spline[:, 0],
+            gt_spline[:, 1],
+            gt_spline[:, 2],
+            c="g")
     set_axes_equal(ax1)
 
     plt.figure(2)
@@ -111,7 +113,7 @@ def set_axes_equal(ax):
 if __name__ == "__main__":
     if SIMULATION:
         folder_num = 1
-        file_num = 1
+        file_num = 4
         fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
         calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
         imgb = cv2.imread(fileb)
@@ -122,7 +124,13 @@ if __name__ == "__main__":
         img2 = np.where(img2>=200, 255, img2)
 
         if ERODE:
-            pass
+            img1_dig = np.where(img1==255, 0, 1).astype("uint8")
+            img2_dig = np.where(img2==255, 0, 1).astype("uint8")
+            kernel = np.ones((2, 2))
+            img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
+            img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
+            img1 = np.where(img1_dig==1, img1, 255)
+            img2 = np.where(img2_dig==1, img2, 255)
 
         left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
         right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
@@ -150,6 +158,40 @@ if __name__ == "__main__":
         #     c="g")
         # set_axes_equal(ax)
         # plt.show()
-
-
         fit_eval(img1, img2, calib, left_starts[file_num-1], right_starts[file_num-1], gt_tck)
+    else:
+        folder_num = 2
+        file_num = 159
+        file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.jpg" % (folder_num, folder_num, file_num)
+        file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.jpg" % (folder_num, folder_num, file_num)
+        calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration.yaml"
+        img1 = cv2.imread(file1)
+        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
+        img2 = cv2.imread(file2)
+        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+
+        if ERODE:
+            img1_dig = np.where(img1==255, 0, 1).astype("uint8")
+            img2_dig = np.where(img2==255, 0, 1).astype("uint8")
+            kernel = np.ones((2, 2))
+            img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
+            img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
+            img1 = np.where(img1_dig==1, img1, 255)
+            img2 = np.where(img2_dig==1, img2, 255)
+
+        #TODO implement
+        left_starts = np.zeros((2, 2))#np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
+        right_starts = np.zeros((2, 2))#np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
+
+        gt_tck = None
+
+        # ax = plt.axes(projection='3d')
+        # ax.plot(
+        #     gt_spline[:, 0],
+        #     gt_spline[:, 1],
+        #     gt_spline[:, 2],
+        #     c="g")
+        # set_axes_equal(ax)
+        # plt.show()
+
+        fit_eval(img1, img2, calib, left_starts, right_starts)
