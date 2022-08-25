@@ -16,7 +16,7 @@ sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
 from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
-SIMULATION = True
+SIMULATION = False
 ERODE = False
 
 def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
@@ -31,10 +31,10 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
     final_tck.c = change_coords(final_tck.c, K1)
 
     # Bo Lu's method
-    ord1, ord2, steps1, steps2 = order_pixels(img1, img2, left_start, right_start)
-    X_cloud = ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
-    ord1 = ord1.T
-    ord2 = ord2.T
+    # ord1, ord2, steps1, steps2 = order_pixels(img1, img2, left_start, right_start)
+    # X_cloud = ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
+    # ord1 = ord1.T
+    # ord2 = ord2.T
 
 
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
@@ -56,20 +56,20 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
             c="g")
     set_axes_equal(ax1)
 
-    plt.figure(2)
-    ax2 = plt.axes(projection='3d')
-    min_len = min(ord1.shape[0], ord2.shape[0])
-    X_cloud = X_cloud.T
-    for row in X_cloud:
-        row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
-        rescaled = change_coords(row_cat, K1)
-        ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
-    ax2.plot(
-        gt_spline[:, 0],
-        gt_spline[:, 1],
-        gt_spline[:, 2],
-        c="g")
-    set_axes_equal(ax2)
+    # plt.figure(2)
+    # ax2 = plt.axes(projection='3d')
+    # min_len = min(ord1.shape[0], ord2.shape[0])
+    # X_cloud = X_cloud.T
+    # for row in X_cloud:
+    #     row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
+    #     rescaled = change_coords(row_cat, K1)
+    #     ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
+    # ax2.plot(
+    #     gt_spline[:, 0],
+    #     gt_spline[:, 1],
+    #     gt_spline[:, 2],
+    #     c="g")
+    # set_axes_equal(ax2)
     plt.show()
 
 def change_coords(pts, K1):

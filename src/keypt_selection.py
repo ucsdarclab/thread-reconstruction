@@ -11,22 +11,25 @@ import copy
 import time
 
 def keypt_selection(img1, img2, calib):
-    pix_thresh = 250
+    pix_thresh = 240
     segpix1 = np.argwhere(img1<=pix_thresh)
     segpix2 = np.argwhere(img2<=pix_thresh)
-    disp_cv, img_3D = stereo_match(img1, img2, calib)
+    disp_cv, img_3D, Q = stereo_match(img1, img2, calib)
     img1 = np.float32(img1)
     img2 = np.float32(img2)
     
     # Get reliabilities
-    # TODO get max_disp from img instead of hardcoding
     reliab = np.zeros(segpix1.shape[0])
-    max_disp = 40
+    # TODO change with image size
+    max_disp = 80
     rad = 2
     c_data = 5
     c_slope = 8
     c_shift = 0.8
+    ignore_rad = 4
+    disp_thresh = segpix1.shape[0]//400
     # TODO deal with out-of-bounds conditions
+    depth_calc = np.ones((4, segpix1.shape[0]))
     for i in range(segpix1.shape[0]):
         pix = segpix1[i]
         chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
@@ -40,15 +43,19 @@ def keypt_selection(img1, img2, calib):
         
         best = np.min(energy)
         disp = np.argmin(energy)
-        energy2 = np.delete(energy, slice(disp-2, disp+3))
+        energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
         next_best = np.min(energy2)
         disp2 = np.argmin(energy2)
         
         x = (next_best - best)/((best + 1e-7)*c_data)
         reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
 
-        if np.abs(disp - disp_cv[pix[0], pix[1]]) > 5:
-            reliab[i] /= 2
+        # if np.abs(disp - disp_cv[pix[0], pix[1]]) > disp_thresh:
+        #     reliab[i] /= 2
+        depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+    depth_calc = np.matmul(Q, depth_calc.copy())
+    depth_calc /= depth_calc[3].copy() + 1e-7
+    img_3D[segpix1[:, 0], segpix1[:, 1], 2] = depth_calc[2]
     
     # prune unreliable points
     reliab_thresh = 0.9

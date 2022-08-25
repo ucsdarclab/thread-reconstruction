@@ -16,6 +16,7 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     grow_parts = [[] for c_id in range(len(grow_paths))]
     part_adjs = [[] for c_id in range(len(grow_paths))]
     DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
+                            #[1, 1], [-1, -1], [-1, 1], [1, -1]])
     min_size = 2
     for c_id, path in enumerate(grow_paths):
         path_list = list(path)
@@ -71,13 +72,22 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     #         adj_nums.append(len(part_adjs[c_id][i]))
     #         plt.text(part[-1, 1], part[-1, 0], str(adj_nums[-1]))
     #     plt.scatter(keypoints[c_id, 1], keypoints[c_id, 0], c="turquoise")
-    #     if 0 in adj_nums:
-    #         plt.show()
+    #     plt.show()
+
+    # Ignore fake intersection points
+    # TODO Implement intersection and occlusion handling
+    ignore = set()
+    for c_id in range(len(keypoints)):
+        num_neighs = len(adjacents[c_id])
+        # parts = grow_parts[c_id]
+        part_adj_lens = [len(part_adj) for part_adj in part_adjs[c_id]]
+        if num_neighs > 1 and num_neighs in part_adj_lens:#len(neighs) > 2 and len(parts) == 1:
+            ignore.add(c_id)
 
     # Extract curve segments, avoiding intersections
     segments = []
-    # prematurely visit intersection keypoints
-    visited = [0 if len(neighs) <= 2 else 1 for neighs in adjacents]
+    # prematurely visit intersection/ignored keypoints
+    visited = [1 if c_id in ignore else 0 for c_id in range(len(keypoints)) ]#[0 if len(neighs) <= 2 else 1 for neighs in adjacents]
     outer_frontier = [c_id for c_id, neighs in enumerate(adjacents) if len(neighs) <= 2]
     while True:
         # Choose an unvisited source with only 1 unvisited neighbor
@@ -124,6 +134,7 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     #     plt.scatter(segment[:, 1], segment[:, 0],\
     #         c=np.arange(0, segment.shape[0]), cmap="hot")
     # plt.show()
+    # return
     
     # Extend out endpoints
     for segment in segments:

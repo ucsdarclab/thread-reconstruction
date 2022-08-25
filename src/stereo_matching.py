@@ -151,7 +151,7 @@ def stereo_match(img1, img2, calib):
         disp_cv = sgbm.compute(img1, img2)
         disp_cv = np.float32(disp_cv) / 16.0
         img_3D = cv2.reprojectImageTo3D(disp_cv, Q)
-        return disp_cv, img_3D
+        return disp_cv, img_3D, Q
     else:
         img1 = np.float32(img1)
         img2 = np.float32(img2)
