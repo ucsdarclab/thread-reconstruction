@@ -76,18 +76,19 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
 
     # Ignore fake intersection points
     # TODO Implement intersection and occlusion handling
-    ignore = set()
-    for c_id in range(len(keypoints)):
-        num_neighs = len(adjacents[c_id])
-        # parts = grow_parts[c_id]
-        part_adj_lens = [len(part_adj) for part_adj in part_adjs[c_id]]
-        if num_neighs > 1 and num_neighs in part_adj_lens:#len(neighs) > 2 and len(parts) == 1:
-            ignore.add(c_id)
+    # ignore = set()
+    # for c_id in range(len(keypoints)):
+    #     num_neighs = len(adjacents[c_id])
+    #     # parts = grow_parts[c_id]
+    #     part_adj_lens = [len(part_adj) for part_adj in part_adjs[c_id]]
+    #     if num_neighs > 1 and num_neighs in part_adj_lens:#len(neighs) > 2 and len(parts) == 1:
+    #         ignore.add(c_id)
 
     # Extract curve segments, avoiding intersections
     segments = []
     # prematurely visit intersection/ignored keypoints
-    visited = [1 if c_id in ignore else 0 for c_id in range(len(keypoints)) ]#[0 if len(neighs) <= 2 else 1 for neighs in adjacents]
+    visited = [0 for c_id in range(len(keypoints))]#[1 if c_id in ignore else 0 for c_id in range(len(keypoints)) ]
+    #[0 if len(neighs) <= 2 else 1 for neighs in adjacents]
     outer_frontier = [c_id for c_id, neighs in enumerate(adjacents) if len(neighs) <= 2]
     while True:
         # Choose an unvisited source with only 1 unvisited neighbor
@@ -107,18 +108,25 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
             break
         
         # graph search to get thread
+        # TODO clean up use of frontier
         frontier = [source]
-        visited[c_id] = 1
+        visited[source] = 1
         segment = []#keypoints[source]]
         while len(frontier) > 0:
-            assert len(frontier) == 1, "Curve is not linked list"
+            #assert len(frontier) == 1, "Curve is not linked list"
             curr = frontier.pop()
             segment.append(curr)#keypoints[curr])
+            min_dist = np.inf
+            min_neigh = None
             for neigh in adjacents[curr]:
                 neigh = int(neigh)
-                if visited[neigh] != 1:
-                    frontier.append(neigh)
-                    visited[neigh] = 1
+                dist = np.linalg.norm((keypoints[neigh] - keypoints[curr])[:2])
+                if visited[neigh] != 1 and dist < min_dist:
+                    min_dist = dist
+                    min_neigh = neigh
+            if min_neigh is not None:
+                visited[min_neigh] = 1
+                frontier.append(min_neigh)
         segments.append(segment)
 
     # plt.figure(1)
@@ -159,7 +167,7 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
 
     # TODO
     "Join segments to form single ordering"
-    return img_3D, keypoints, grow_paths, segments[-1]
+    return img_3D, keypoints, grow_paths, segments[0]
 
 if __name__ == "__main__":
     # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
