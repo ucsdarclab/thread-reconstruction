@@ -77,10 +77,17 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     lower = np.zeros((len(order), 3))
     upper = np.zeros((len(order), 3))
     fit_rad = keypoints.shape[0] // 10
+    bound_rads = []
+    bound_thresh = 1e-5
+    lowest_nonzero = np.inf
     for key_ord, key_id in enumerate(order):
         # Fit line to range of points
         start = max(key_ord-fit_rad, 0)
         end = min(key_ord+fit_rad, len(order)-1)
+        if start == 0:
+            end += fit_rad//2
+        elif end == len(order)-1:
+            start -= fit_rad//2
         x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
         data = init_pts[x, 2]
         slope, intercept, *_ = scipy.stats.linregress(x, data)
@@ -91,25 +98,14 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         line_std = np.mean((data - line_pts)**2) ** (1/2)
         bound_rad = np.abs(keypoints[key_id, 2] - curr_line_pt) * 1.5
         bound_rad = max(bound_rad, line_std)
+        bound_rads.append(bound_rad)
+        if bound_rad > bound_thresh:
+            lowest_nonzero = min(lowest_nonzero, bound_rad)
+    for key_ord, (key_id, bound_rad) in enumerate(zip(order, bound_rads)):
+        if bound_rad <= bound_thresh:
+            bound_rad = lowest_nonzero
         lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
         upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
-        
-
-    # Ground truth, for testing
-    gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend2/blend2_2.npy")
-    cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
-    K1 = cv_file.getNode("K1").mat()
-    m2pix = K1[0, 0] / 50e-3
-    gt_pix = np.matmul(K1, gt_b.T).T
-    gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
-    gk = 3
-    gt_knots = np.concatenate(
-        (np.repeat(0, gk),
-        np.linspace(0, 1, gt_b.shape[0]-gk+1),
-        np.repeat(1, gk))
-    )
-    gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-    gt_spline = gt_tck(np.linspace(0, 1, 150))
 
     # ax = plt.axes(projection="3d")
     # ax.set_xlim(0, 480)
