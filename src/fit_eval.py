@@ -18,8 +18,9 @@ from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
 SIMULATION = False
 ERODE = False
+COMPARE = False
 
-def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
+def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
     # Read in camera matrix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -30,16 +31,13 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
     final_tck = curve_fit(img1, img_3D, keypoints, grow_paths, order)
     final_tck.c = change_coords(final_tck.c, K1)
 
-    # Bo Lu's method
-    # ord1, ord2, steps1, steps2 = order_pixels(img1, img2, left_start, right_start)
-    # X_cloud = ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
-    # ord1 = ord1.T
-    # ord2 = ord2.T
-
 
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
     if gt_tck is not None:
         gt_spline = gt_tck(np.linspace(0, 1, 150))
+
+        ours_len, gt_len, diff = length_error(final_tck, gt_tck)
+        print(ours_len, gt_len, diff)
 
     plt.figure(1)
     ax1 = plt.axes(projection='3d')
@@ -56,21 +54,39 @@ def fit_eval(img1, img2, calib, left_start, right_start, gt_tck=None):
             c="g")
     set_axes_equal(ax1)
 
-    # plt.figure(2)
-    # ax2 = plt.axes(projection='3d')
-    # min_len = min(ord1.shape[0], ord2.shape[0])
-    # X_cloud = X_cloud.T
-    # for row in X_cloud:
-    #     row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
-    #     rescaled = change_coords(row_cat, K1)
-    #     ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
-    # ax2.plot(
-    #     gt_spline[:, 0],
-    #     gt_spline[:, 1],
-    #     gt_spline[:, 2],
-    #     c="g")
-    # set_axes_equal(ax2)
+    # Bo Lu's method
+    if COMPARE:
+        ord1, ord2, steps1, steps2 = order_pixels(img1, img2, left_start, right_start)
+        X_cloud = ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
+        ord1 = ord1.T
+        ord2 = ord2.T
+
+        plt.figure(2)
+        ax2 = plt.axes(projection='3d')
+        min_len = min(ord1.shape[0], ord2.shape[0])
+        X_cloud = X_cloud.T
+        for row in X_cloud:
+            row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
+            rescaled = change_coords(row_cat, K1)
+            ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
+        ax2.plot(
+            gt_spline[:, 0],
+            gt_spline[:, 1],
+            gt_spline[:, 2],
+            c="g")
+        set_axes_equal(ax2)
     plt.show()
+
+def length_error(ours, gt):
+    ours_der = ours.derivative()
+    gt_der = gt.derivative()
+
+    def integrand(u, dspline):
+        return np.linalg.norm(dspline(u))
+    
+    ours_len = scipy.integrate.quad(integrand, ours.t[0], ours.t[-1], args=(ours_der))[0]
+    gt_len = scipy.integrate.quad(integrand, gt.t[0], gt.t[-1], args=(gt_der))[0]
+    return ours_len, gt_len, ours_len - gt_len
 
 def change_coords(pts, K1):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
@@ -112,7 +128,7 @@ def set_axes_equal(ax):
 
 if __name__ == "__main__":
     if SIMULATION:
-        folder_num = 1
+        folder_num = 4
         file_num = 4
         fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
         calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
@@ -132,15 +148,16 @@ if __name__ == "__main__":
             img1 = np.where(img1_dig==1, img1, 255)
             img2 = np.where(img2_dig==1, img2, 255)
 
-        left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
-        right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
+        left_start = None
+        right_start = None
+        if COMPARE:
+            left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
+            right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
+            left_start = left_starts[file_num-1]
+            right_start = right_starts[file_num-1]
 
         gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
         cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
-        # K1 = cv_file.getNode("K1").mat()
-        # m2pix = K1[0, 0] / 50e-3
-        # gt_pix = np.matmul(K1, gt_b.T).T
-        # gt_b[:, :2] = gt_pix[:, :2] / gt_pix[:, 2:]
         gk = 3
         gt_knots = np.concatenate(
             (np.repeat(0, gk),
@@ -150,15 +167,7 @@ if __name__ == "__main__":
         gt_tck = interp.BSpline(gt_knots, gt_b, gk)
         gt_spline = gt_tck(np.linspace(0, 1, 150))
 
-        # ax = plt.axes(projection='3d')
-        # ax.plot(
-        #     gt_spline[:, 0],
-        #     gt_spline[:, 1],
-        #     gt_spline[:, 2],
-        #     c="g")
-        # set_axes_equal(ax)
-        # plt.show()
-        fit_eval(img1, img2, calib, left_starts[file_num-1], right_starts[file_num-1], gt_tck)
+        fit_eval(img1, img2, calib, left_start, right_start, gt_tck)
     else:
         folder_num = 2
         file_num = 159
