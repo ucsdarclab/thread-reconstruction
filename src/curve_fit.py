@@ -397,20 +397,20 @@ if __name__ == "__main__":
     # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
     # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
     # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
-    fileb = "../Blender_imgs/blend2/blend2_2.jpg"
+    fileb = "../Blender_imgs/blend5/blend5_1.png"
     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
     imgb = cv2.imread(fileb)
     imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
     img1 = imgb[:, :640]
     img2 = imgb[:, 640:]
-    img1 = np.where(img1>=200, 255, img1)
-    img2 = np.where(img2>=200, 255, img2)
-    # plt.figure(1)
-    # plt.imshow(img1, cmap="gray")
-    # plt.figure(2)
-    # plt.imshow(img2, cmap="gray")
-    # plt.show()
-    # assert False
+    img1 = np.where(img1>=205, 255, img1)
+    img2 = np.where(img2>=205, 255, img2)
+    plt.figure(1)
+    plt.imshow(img1, cmap="gray")
+    plt.figure(2)
+    plt.imshow(img2, cmap="gray")
+    plt.show()
+    assert False
     # test()
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, calib)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)

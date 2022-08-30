@@ -16,7 +16,7 @@ sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
 from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
-SIMULATION = False
+SIMULATION = True
 ERODE = False
 COMPARE = False
 
@@ -37,14 +37,22 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         gt_spline = gt_tck(np.linspace(0, 1, 150))
 
         ours_len, gt_len, diff = length_error(final_tck, gt_tck)
-        print(ours_len, gt_len, diff)
+        print("Lengths: ours %f, gt %f, diff %f" % (ours_len, gt_len, diff))
+
+        num_eval_pts = int(gt_len*10)
+        errors1, spots1, e_mean1, e_max1 = curve_error(final_tck, gt_tck, num_eval_pts)
+        errors2, spots2, e_mean2, e_max2 = curve_error(gt_tck, final_tck, num_eval_pts)
+        e_mean = (e_mean1 + e_mean2)/2
+        e_max = max(e_max1, e_max2)
+        print("Curve error: mean %f, max %f" % (e_mean, e_max))
 
     plt.figure(1)
     ax1 = plt.axes(projection='3d')
     ax1.plot(
         final_spline[:, 0],
         final_spline[:, 1],
-        final_spline[:, 2]
+        final_spline[:, 2],
+        c="r"
     )
     if gt_tck is not None:
         ax1.plot(
@@ -52,6 +60,18 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
             gt_spline[:, 1],
             gt_spline[:, 2],
             c="g")
+        # gt_pts = np.concatenate((gt_tck(np.linspace(0, 1, num_eval_pts)), gt_tck(spots2)))
+        # ours_pts = np.concatenate((final_tck(spots1), final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], num_eval_pts))))
+        # ax1.scatter(
+        #     gt_pts[:, 0],
+        #     gt_pts[:, 1],
+        #     gt_pts[:, 2]
+        # )
+        # ax1.scatter(
+        #     ours_pts[:, 0],
+        #     ours_pts[:, 1],
+        #     ours_pts[:, 2]
+        # )
     set_axes_equal(ax1)
 
     # Bo Lu's method
@@ -87,6 +107,42 @@ def length_error(ours, gt):
     ours_len = scipy.integrate.quad(integrand, ours.t[0], ours.t[-1], args=(ours_der))[0]
     gt_len = scipy.integrate.quad(integrand, gt.t[0], gt.t[-1], args=(gt_der))[0]
     return ours_len, gt_len, ours_len - gt_len
+
+def curve_error(ours, gt, num_eval_pts):
+    def objective(u, gt_pt):
+        return np.linalg.norm(gt_pt - ours(u))
+    
+    # Find direction of ordering
+    to_start = np.linalg.norm(gt(gt.t[0]) - ours(ours.t[0]))
+    to_end = np.linalg.norm(gt(gt.t[-1]) - ours(ours.t[0]))
+    aligned = True if to_start < to_end else False
+    
+    errors = np.zeros(num_eval_pts)
+    spots = np.zeros(num_eval_pts)
+    gt_pts = gt(np.linspace(gt.t[0], gt.t[-1], num_eval_pts))
+    slider = ours.t[0] if aligned else ours.t[-1]
+    for i, gt_pt in enumerate(gt_pts):
+        bounds = [(slider, ours.t[-1]) if aligned else (ours.t[0], slider)]
+        res1 = scipy.optimize.shgo(
+            objective,
+            bounds=bounds,
+            # method="bounded",
+            args=(gt_pt,)
+        )
+        res2 = scipy.optimize.differential_evolution(
+            objective,
+            bounds=bounds,
+            # method="bounded",
+            args=(gt_pt,)
+        )
+        if objective(res1.x, gt_pt) < objective(res2.x, gt_pt):
+            best = res1.x
+        else:
+            best = res2.x
+        # slider = best
+        spots[i] = best
+        errors[i] = objective(best, gt_pt)
+    return errors, spots, np.mean(errors), np.max(errors)
 
 def change_coords(pts, K1):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
@@ -128,10 +184,14 @@ def set_axes_equal(ax):
 
 if __name__ == "__main__":
     if SIMULATION:
-        folder_num = 4
-        file_num = 4
-        fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
-        calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
+        folder_num = 10
+        file_num = 2
+        if folder_num < 5:
+            fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
+            calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
+        else:
+            fileb = "../Blender_imgs/blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
+            calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration_new.yaml"
         imgb = cv2.imread(fileb)
         imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
         img1 = imgb[:, :640]
