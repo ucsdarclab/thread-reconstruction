@@ -63,7 +63,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             intervals = np.linspace(interval_floor, np.max(proj), num_samples)
             int_idx = 0
             for pt_idx in pt2ord:
-                if int_idx >= num_samples:
+                if int_idx >= num_samples or \
+                    (filtered_pix[pt_idx] == keypoints[next_id, :2]).all():
                     break
                 if proj[pt_idx] >= intervals[int_idx]:
                     # Use linearly interpolated depth between keypoints
@@ -80,8 +81,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     bound_rads = []
     bound_thresh = 1e-5
     lowest_nonzero = np.inf
-    endpts = []
-    slopes = []
     for key_ord, key_id in enumerate(order):
         # Fit line to range of points
         start = max(key_ord-fit_rad, 0)
@@ -93,12 +92,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
         data = init_pts[x, 2]
         slope, intercept, *_ = scipy.stats.linregress(x, data)
-        if key_ord == 0:
-            endpts.append(intercept)
-            slopes.append(slope)
-        elif key_ord == len(order) - 1:
-            endpts.append(slope*x[-1] + intercept)
-            slopes.append(slope)
 
         # Construct bound radius from current point
         line_pts = slope * x + intercept
@@ -166,6 +159,29 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     high_constr = interp.interp1d(u[keypoint_idxs], upper[:, 2])
     center = (low_constr(u) + high_constr(u))/2
     init_pts[:, 2] = center
+
+    # Get endpoint trends
+    endpts = []
+    slopes = []
+    endpt_ids = [order[0], order[-1]]
+    endpt_ords = [0, len(order)-1]
+    for key_ord, key_id in zip(endpt_ords, endpt_ids):
+        # Fit line to range of points
+        start = max(key_ord-fit_rad, 0)
+        end = min(key_ord+fit_rad, len(order)-1)
+        if start == 0:
+            end += fit_rad//2
+        elif end == len(order)-1:
+            start -= fit_rad//2
+        x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
+        data = init_pts[x, 2]
+        slope, intercept, *_ = scipy.stats.linregress(x, data)
+        if key_ord == 0:
+            endpts.append(intercept)
+            slopes.append(slope)
+        elif key_ord == len(order) - 1:
+            endpts.append(slope*x[-1] + intercept)
+            slopes.append(slope)
 
     tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
 
