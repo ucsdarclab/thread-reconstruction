@@ -80,6 +80,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     bound_rads = []
     bound_thresh = 1e-5
     lowest_nonzero = np.inf
+    endpts = []
+    slopes = []
     for key_ord, key_id in enumerate(order):
         # Fit line to range of points
         start = max(key_ord-fit_rad, 0)
@@ -91,6 +93,12 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
         data = init_pts[x, 2]
         slope, intercept, *_ = scipy.stats.linregress(x, data)
+        if key_ord == 0:
+            endpts.append(intercept)
+            slopes.append(slope)
+        elif key_ord == len(order) - 1:
+            endpts.append(slope*x[-1] + intercept)
+            slopes.append(slope)
 
         # Construct bound radius from current point
         line_pts = slope * x + intercept
@@ -138,7 +146,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     num_ctrl = 15#init_pts.shape[0] // (2*d)
     print(num_ctrl)
 
-    dists = np.linalg.norm(init_pts[1:] - init_pts[:-1], axis=1)
+    dists = np.linalg.norm(init_pts[1:, :2] - init_pts[:-1, :2], axis=1)
     dists /= np.sum(dists)
     u = np.zeros(init_pts.shape[0])
     u[1:] = np.cumsum(dists) * dists.shape[0]
@@ -166,6 +174,13 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     k = tck[2]
     tck = interp.BSpline(t, c, k)
     init_spline = tck(np.linspace(0, u[-1], 150))
+
+    # plt.imshow(img1, cmap="gray")
+    # plt.plot(init_pts[:, 1], init_pts[:, 0])
+    # plt.plot(init_spline[:, 1], init_spline[:, 0])
+    # plt.scatter(init_pts[:, 1], init_pts[:, 0], c="r")
+    # plt.show()
+    # return
 
     # ax = plt.axes(projection="3d")
     # ax.set_xlim(0, 480)
@@ -209,6 +224,18 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
                 "args":(knots, d, high_constr, p, spline_db)
             }
         )
+    sides = [0, -1, 0, -1]
+    constrs = [endpts[0], endpts[1], slopes[0], slopes[-1]]
+    ders = [0, 0, 1, 1]
+    for side, constr, der in zip(sides, constrs, ders):
+        constraints.append(
+            {
+                "type":"eq",
+                "fun":endpt_constr,
+                # "jac":endpt_grad,
+                "args": (knots, d, side, constr, der)
+            }
+        )
     
     
     final = scipy.optimize.minimize(
@@ -248,22 +275,32 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     #     c="b")
     # plt.figure(2)
     ax2 = plt.axes(projection="3d")
-    ax2.set_xlim(0, 480)
-    ax2.set_ylim(0, 640)
-    ax2.set_zlim(5, 15)
+    # ax2.set_xlim(0, 480)
+    # ax2.set_ylim(0, 640)
+    # ax2.set_zlim(5, 15)
+    # ax2.plot(
+    #     gt_spline[:, 1],
+    #     gt_spline[:, 0],
+    #     gt_spline[:, 2],
+    #     c="g")
     ax2.plot(
-        gt_spline[:, 1],
-        gt_spline[:, 0],
-        gt_spline[:, 2],
-        c="g")
+        init_spline[:, 0],
+        init_spline[:, 1],
+        init_spline[:, 2],
+        c="turquoise")
+    # ax2.plot(
+    #     init_pts[:, 0],
+    #     init_pts[:, 1],
+    #     init_pts[:, 2],
+    #     c="turquoise")
     ax2.plot(
         final_spline[:, 0],
         final_spline[:, 1],
         final_spline[:, 2],
         c="b")
-    # ax2.scatter(keypoints[:, 0], keypoints[:, 1], keypoints[:, 2], c="r")
-    # ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
-    # ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
+    ax2.scatter(keypoints[:, 0], keypoints[:, 1], keypoints[:, 2], c="r")
+    ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
+    ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
     plt.show()
 
 
@@ -297,6 +334,17 @@ def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
 #     tck = interp.BSpline(knots, b, d)
 #     spline = interp.splev([end], tck, der)
 #     return spline - B
+
+def endpt_constr(args, knots, d, side, constr, der):
+    b = np.array([val for val in args])
+    tck = interp.BSpline(knots, b, d)
+    spline = interp.splev([knots[side]], tck, der)
+    return spline - constr
+
+# def endpt_grad(args, side, der, constr):
+#     grad = np.zeros(len(args))
+#     grad[side] = 1
+#     return grad
 
 def lower_bound(args, knots, d, constr, x, grad):
     b = np.array([val for val in args])
