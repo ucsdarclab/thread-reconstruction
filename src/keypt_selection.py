@@ -187,7 +187,7 @@ def keypt_selection(img1, img2, calib):
         frontier = copy.deepcopy(cluster)
         while len(frontier) > 0:
             curr = frontier.pop()
-            for d in DIRECTIONS[:4]:
+            for d in DIRECTIONS[:8]:
                 neigh = curr + d
                 # Check OOB condition
                 if neigh[0] < 0 or neigh[0] >= solid_map.shape[0] or \

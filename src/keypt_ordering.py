@@ -15,8 +15,8 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     # visiteds = [[False for i in len(path)] for path in grow_paths]
     grow_parts = [[] for c_id in range(len(grow_paths))]
     part_adjs = [[] for c_id in range(len(grow_paths))]
-    DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1]])
-                            #[1, 1], [-1, -1], [-1, 1], [1, -1]])
+    DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1],
+                            [1, 1], [-1, -1], [-1, 1], [1, -1]])
     min_size = 2
     for c_id, path in enumerate(grow_paths):
         path_list = list(path)
