@@ -16,7 +16,7 @@ sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
 from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
-SIMULATION = True
+SIMULATION = False
 ERODE = False
 COMPARE = False
 
@@ -185,7 +185,7 @@ def set_axes_equal(ax):
 if __name__ == "__main__":
     if SIMULATION:
         folder_num = 10
-        file_num = 2
+        file_num = 4
         if folder_num < 5:
             fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
             calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
@@ -238,6 +238,11 @@ if __name__ == "__main__":
         img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
         img2 = cv2.imread(file2)
         img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
+        # plt.figure(1)
+        # plt.imshow(img1, cmap="gray")
+        # plt.figure(2)
+        # plt.imshow(img2, cmap="gray")
+        # plt.show()
 
         if ERODE:
             img1_dig = np.where(img1==255, 0, 1).astype("uint8")
