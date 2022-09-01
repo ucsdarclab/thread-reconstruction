@@ -11,7 +11,7 @@ import copy
 import time
 
 def keypt_selection(img1, img2, calib):
-    pix_thresh = 240
+    pix_thresh = 250
     segpix1 = np.argwhere(img1<=pix_thresh)
     segpix2 = np.argwhere(img2<=pix_thresh)
     disp_cv, img_3D, Q = stereo_match(img1, img2, calib)
@@ -32,13 +32,14 @@ def keypt_selection(img1, img2, calib):
     depth_calc = np.ones((4, segpix1.shape[0]))
     for i in range(segpix1.shape[0]):
         pix = segpix1[i]
+        curr_max_disp = min(pix[1], max_disp)
         chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
         seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
 
         energy = np.array([
             np.sum(
                 (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2
-            ) for off in range(max_disp)
+            ) for off in range(curr_max_disp)
         ])
         
         best = np.min(energy)
@@ -77,6 +78,10 @@ def keypt_selection(img1, img2, calib):
     #     relpts[:, 1],
     #     img_3D[relpts[:, 0], relpts[:, 1], 2],
     #     c="b")
+    # plt.show()
+    # return
+    # plt.imshow(img1, cmap="gray")
+    # plt.scatter(relpts[:, 1], relpts[:, 0], c="r")
     # plt.show()
     # return
 
