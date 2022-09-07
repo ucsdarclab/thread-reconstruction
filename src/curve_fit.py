@@ -18,6 +18,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     segpix1 = np.argwhere(img1<250)
 
     size_thresh = segpix1.shape[0] // 100
+    ang_thresh = np.pi/5
     interval_floor = size_thresh // 2
     keypoint_idxs = []
     for key_ord, key_id in enumerate(order[:-1]):
@@ -52,11 +53,32 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             p2 = keypoints[next_id, :2]
             p1p2 = p2 - p1
             p1pt = filtered_pix - np.expand_dims(p1, 0)
-            proj = np.dot(p1pt, p1p2) / np.linalg.norm(p1p2)
+            p2pt = filtered_pix - np.expand_dims(p2, 0)
+            proj1 = np.dot(p1pt, p1p2) / np.linalg.norm(p1p2)
+            proj2 = np.dot(p2pt, -1*p1p2) / np.linalg.norm(p1p2)
+            ang1 = np.arccos(proj1 / (np.linalg.norm(p1pt, axis=1)+1e-7))
+            ang2 = np.arccos(proj2 / (np.linalg.norm(p2pt, axis=1)+1e-7))
+
+            mask1 = ang1 < ang_thresh
+            mask2 = ang2 < ang_thresh
+            mask = np.logical_and(mask1, mask2)
+            mask_idxs = np.atleast_1d(np.squeeze(np.argwhere(mask)))
+            if mask_idxs.shape[0] < num_samples:
+                continue
+            filtered_pix = filtered_pix[mask_idxs]
+            filtered_depths = filtered_depths[mask_idxs]
+            filtered_pts = filtered_pts[mask_idxs]
+            proj = proj1[mask_idxs]
+
+
+            # plt.imshow(img1, cmap="gray")
+            # plt.scatter(filtered_pix[:, 1], filtered_pix[:, 0])
+            # plt.scatter([p1[1], p2[1]], [p1[0], p2[0]], c="r")
+            # plt.show()
 
             # Choose evenly spaced points, based on projections
             pt2ord = np.argsort(proj)
-            floor = interval_floor if interval_floor<np.max(proj) else np.min(proj)
+            floor = interval_floor if interval_floor<np.max(proj) else max(np.min(proj), 0)
             p1d = keypoints[key_id, 2]
             p2d = keypoints[next_id, 2]
             p1p2d = p2d - p1d
@@ -81,6 +103,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     bound_rads = []
     bound_thresh = 1e-5
     lowest_nonzero = np.inf
+    key_line_pts = np.zeros(len(order))
     for key_ord, key_id in enumerate(order):
         # Fit line to range of points
         start = max(key_ord-fit_rad, 0)
@@ -96,6 +119,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         # Construct bound radius from current point
         line_pts = slope * x + intercept
         curr_line_pt = slope * keypoint_idxs[key_ord] + intercept
+        key_line_pts[key_ord] = curr_line_pt
         line_std = np.mean((data - line_pts)**2) ** (1/2)
         bound_rad = np.abs(keypoints[key_id, 2] - curr_line_pt) * 1.5
         bound_rad = max(bound_rad, line_std)
@@ -159,6 +183,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     high_constr = interp.interp1d(u[keypoint_idxs], upper[:, 2])
     center = (low_constr(u) + high_constr(u))/2
     init_pts[:, 2] = center
+    # center = interp.interp1d(u[keypoint_idxs], key_line_pts)
+    # init_pts[:, 2] = center(u)
 
     # Get endpoint trends
     endpts = []
@@ -182,7 +208,8 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         elif key_ord == len(order) - 1:
             endpts.append(slope*x[-1] + intercept)
             slopes.append(slope)
-
+    init_pts[0, 2] = endpts[0]
+    init_pts[-1, 2] = endpts[-1]
     tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
 
     t = tck[0]
@@ -299,16 +326,16 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     #     gt_spline[:, 0],
     #     gt_spline[:, 2],
     #     c="g")
-    ax2.plot(
-        init_spline[:, 0],
-        init_spline[:, 1],
-        init_spline[:, 2],
-        c="turquoise")
     # ax2.plot(
-    #     init_pts[:, 0],
-    #     init_pts[:, 1],
-    #     init_pts[:, 2],
+    #     init_spline[:, 0],
+    #     init_spline[:, 1],
+    #     init_spline[:, 2],
     #     c="turquoise")
+    ax2.plot(
+        init_pts[:, 0],
+        init_pts[:, 1],
+        init_pts[:, 2],
+        c="turquoise")
     ax2.plot(
         final_spline[:, 0],
         final_spline[:, 1],

@@ -184,8 +184,8 @@ def set_axes_equal(ax):
 
 if __name__ == "__main__":
     if SIMULATION:
-        folder_num = 10
-        file_num = 4
+        folder_num = 9
+        file_num = 3
         if folder_num < 5:
             fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
             calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
@@ -230,9 +230,9 @@ if __name__ == "__main__":
         fit_eval(img1, img2, calib, left_start, right_start, gt_tck)
     else:
         folder_num = 2
-        file_num = 159
-        file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.jpg" % (folder_num, folder_num, file_num)
-        file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.jpg" % (folder_num, folder_num, file_num)
+        file_num = 209
+        file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
+        file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
         calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration.yaml"
         img1 = cv2.imread(file1)
         img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)

@@ -26,7 +26,7 @@ def keypt_selection(img1, img2, calib):
     c_data = 5
     c_slope = 8
     c_shift = 0.8
-    ignore_rad = 4
+    ignore_rad = 2
     disp_thresh = segpix1.shape[0]//400
     # TODO deal with out-of-bounds conditions
     depth_calc = np.ones((4, segpix1.shape[0]))
