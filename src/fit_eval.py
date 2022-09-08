@@ -7,6 +7,7 @@ import scipy.interpolate as interp
 import scipy.stats
 import cv2
 import sys
+import csv
 
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
@@ -16,12 +17,13 @@ sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
 from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
-SIMULATION = False
+SIMULATION = True
 ERODE = False
 COMPARE = False
 
 def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
     # Read in camera matrix
+    # TODO Fix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
     
@@ -29,6 +31,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, calib)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
     final_tck = curve_fit(img1, img_3D, keypoints, grow_paths, order)
+    # TODO Fix
     final_tck.c = change_coords(final_tck.c, K1)
 
 
@@ -87,6 +90,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         X_cloud = X_cloud.T
         for row in X_cloud:
             row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
+            # TODO Fix
             rescaled = change_coords(row_cat, K1)
             ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
         ax2.plot(
@@ -95,7 +99,8 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
             gt_spline[:, 2],
             c="g")
         set_axes_equal(ax2)
-    plt.show()
+    # plt.show()
+    return ours_len, gt_len, diff, e_mean, e_max
 
 def length_error(ours, gt):
     ours_der = ours.derivative()
@@ -144,6 +149,7 @@ def curve_error(ours, gt, num_eval_pts):
         errors[i] = objective(best, gt_pt)
     return errors, spots, np.mean(errors), np.max(errors)
 
+# TODO Fix
 def change_coords(pts, K1):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
     depths = pts[:, 2:].copy()
@@ -184,50 +190,68 @@ def set_axes_equal(ax):
 
 if __name__ == "__main__":
     if SIMULATION:
-        folder_num = 9
-        file_num = 3
-        if folder_num < 5:
-            fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
-            calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
-        else:
-            fileb = "../Blender_imgs/blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
-            calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration_new.yaml"
-        imgb = cv2.imread(fileb)
-        imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-        img1 = imgb[:, :640]
-        img2 = imgb[:, 640:]
-        img1 = np.where(img1>=200, 255, img1)
-        img2 = np.where(img2>=200, 255, img2)
+        # folder_num = 9
+        # file_num = 3
+        data = []
+        header = ["file", "ours_len", "gt_len", "diff", "e_mean", "e_max"]
+        footer = ["Failed"]
+        for folder_num in range(1,11):
+            for file_num in range(1,5):
+                if folder_num < 5:
+                    fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
+                    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
+                else:
+                    fileb = "../Blender_imgs/blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
+                    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration_new.yaml"
+                imgb = cv2.imread(fileb)
+                imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
+                img1 = imgb[:, :640]
+                img2 = imgb[:, 640:]
+                img1 = np.where(img1>=200, 255, img1)
+                img2 = np.where(img2>=200, 255, img2)
 
-        if ERODE:
-            img1_dig = np.where(img1==255, 0, 1).astype("uint8")
-            img2_dig = np.where(img2==255, 0, 1).astype("uint8")
-            kernel = np.ones((2, 2))
-            img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
-            img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
-            img1 = np.where(img1_dig==1, img1, 255)
-            img2 = np.where(img2_dig==1, img2, 255)
+                if ERODE:
+                    img1_dig = np.where(img1==255, 0, 1).astype("uint8")
+                    img2_dig = np.where(img2==255, 0, 1).astype("uint8")
+                    kernel = np.ones((2, 2))
+                    img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
+                    img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
+                    img1 = np.where(img1_dig==1, img1, 255)
+                    img2 = np.where(img2_dig==1, img2, 255)
 
-        left_start = None
-        right_start = None
-        if COMPARE:
-            left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
-            right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
-            left_start = left_starts[file_num-1]
-            right_start = right_starts[file_num-1]
+                left_start = None
+                right_start = None
+                if COMPARE:
+                    left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
+                    right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
+                    left_start = left_starts[file_num-1]
+                    right_start = right_starts[file_num-1]
 
-        gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
-        cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
-        gk = 3
-        gt_knots = np.concatenate(
-            (np.repeat(0, gk),
-            np.linspace(0, 1, gt_b.shape[0]-gk+1),
-            np.repeat(1, gk))
-        )
-        gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-        gt_spline = gt_tck(np.linspace(0, 1, 150))
+                gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
+                cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
+                gk = 3
+                gt_knots = np.concatenate(
+                    (np.repeat(0, gk),
+                    np.linspace(0, 1, gt_b.shape[0]-gk+1),
+                    np.repeat(1, gk))
+                )
+                gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+                gt_spline = gt_tck(np.linspace(0, 1, 150))
 
-        fit_eval(img1, img2, calib, left_start, right_start, gt_tck)
+                try:
+                    out = list(fit_eval(img1, img2, calib, left_start, right_start, gt_tck))
+                    out = ["%d_%d" % (folder_num, file_num)] + out
+                    data.append(out)
+                except:
+                    footer.append("%d_%d" % (folder_num, file_num))
+
+        with open("results.csv", "w", newline="") as f:
+            writer = csv.writer(f)
+            writer.writerow(header)
+            writer.writerows(data)
+            writer.writerow(footer)
+
+                
     else:
         folder_num = 2
         file_num = 209
