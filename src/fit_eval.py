@@ -17,22 +17,31 @@ sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
 from Bo_Lu.pixel_ordering import order_pixels
 from Bo_Lu.ssp_reconstruction import ssp_reconstruction
 
-SIMULATION = True
+SIMULATION = False
 ERODE = False
 COMPARE = False
+STORE = False
 
 def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
     # Read in camera matrix
-    # TODO Fix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
+    D1 = cv_file.getNode("D1").mat()
+    K2 = cv_file.getNode("K2").mat()
+    D2 = cv_file.getNode("D2").mat()
+    R = cv_file.getNode("R").mat()
+    T = cv_file.getNode("T").mat()
+    ImageSize = cv_file.getNode("ImageSize").mat()
+    img_size = (int(ImageSize[0][1]), int(ImageSize[0][0]))
+
+    R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
+        flags=cv2.CALIB_ZERO_DISPARITY)
     
     # Our method
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, calib)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
     final_tck = curve_fit(img1, img_3D, keypoints, grow_paths, order)
-    # TODO Fix
-    final_tck.c = change_coords(final_tck.c, K1)
+    final_tck.c = change_coords(final_tck.c, P1[:, :3])
 
 
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
@@ -90,8 +99,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         X_cloud = X_cloud.T
         for row in X_cloud:
             row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
-            # TODO Fix
-            rescaled = change_coords(row_cat, K1)
+            rescaled = change_coords(row_cat, P1[:, :3])
             ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
         ax2.plot(
             gt_spline[:, 0],
@@ -99,7 +107,8 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
             gt_spline[:, 2],
             c="g")
         set_axes_equal(ax2)
-    # plt.show()
+    if not STORE:
+        plt.show()
     return ours_len, gt_len, diff, e_mean, e_max
 
 def length_error(ours, gt):
@@ -149,7 +158,6 @@ def curve_error(ours, gt, num_eval_pts):
         errors[i] = objective(best, gt_pt)
     return errors, spots, np.mean(errors), np.max(errors)
 
-# TODO Fix
 def change_coords(pts, K1):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
     depths = pts[:, 2:].copy()
@@ -195,8 +203,8 @@ if __name__ == "__main__":
         data = []
         header = ["file", "ours_len", "gt_len", "diff", "e_mean", "e_max"]
         footer = ["Failed"]
-        for folder_num in range(1,11):
-            for file_num in range(1,5):
+        for folder_num in range(10,11):
+            for file_num in range(4,5):
                 if folder_num < 5:
                     fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
                     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
@@ -245,11 +253,12 @@ if __name__ == "__main__":
                 except:
                     footer.append("%d_%d" % (folder_num, file_num))
 
-        with open("results.csv", "w", newline="") as f:
-            writer = csv.writer(f)
-            writer.writerow(header)
-            writer.writerows(data)
-            writer.writerow(footer)
+        if STORE:
+            with open("results.csv", "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(header)
+                writer.writerows(data)
+                writer.writerow(footer)
 
                 
     else:
