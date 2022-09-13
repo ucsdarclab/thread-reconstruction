@@ -2,3 +2,5 @@
 src/__pycache__
 src/Bo_Lu/__pycache__
 results.xlsx
+results_real.xlsx
+spline174.npy
