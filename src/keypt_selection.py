@@ -10,13 +10,38 @@ import sys
 import copy
 import time
 
-def keypt_selection(img1, img2, calib):
+
+def keypt_selection(img1, img2, Q):
+    # folder_num = 2
+    # file_num = 209
+    # file1 = "../Suture_Thread_06_16/thread_%d/left_recif_%d.jpg" % (folder_num, file_num)
+    # file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
+    # fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
+    # img_test = cv2.imread(file1)
+    # img_test = img_test[:, :640]
+    # img_test = np.where(img1_test>=200, 255, img_test)
+    # img_test = cv2.cvtColor(img_test, cv2.COLOR_BGR2RGB)
+    
+    
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # plt.figure(2)
+    # plt.imshow(img2, cmap="gray")
+    # plt.show()
     pix_thresh = 250
     segpix1 = np.argwhere(img1<=pix_thresh)
     segpix2 = np.argwhere(img2<=pix_thresh)
-    disp_cv, img_3D, Q = stereo_match(img1, img2, calib)
-    img1 = np.float32(img1)
-    img2 = np.float32(img2)
+    img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
+    # disp_cv, img_3D, Q, img1, img2 = stereo_match(img1, img2, calib)
+    # img1 = np.where(img1==0, 255, img1)
+    # img2 = np.where(img2==0, 255, img2)
+    # img1 = np.float32(img1)
+    # img2 = np.float32(img2)
+    # plt.figure(1)
+    # plt.imshow(img1, cmap="gray")
+    # plt.figure(2)
+    # plt.imshow(img2, cmap="gray")
+    # plt.show()
     
     # Get reliabilities
     reliab = np.zeros(segpix1.shape[0])
@@ -27,6 +52,7 @@ def keypt_selection(img1, img2, calib):
     c_slope = 8
     c_shift = 0.8
     ignore_rad = 2
+    # keep_rad = 40
     disp_thresh = segpix1.shape[0]//400
     # TODO deal with out-of-bounds conditions
     depth_calc = np.ones((4, segpix1.shape[0]))
@@ -36,15 +62,24 @@ def keypt_selection(img1, img2, calib):
         chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
         seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
 
-        energy = np.array([
-            np.sum(
-                (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2
-            ) for off in range(curr_max_disp)
-        ])
+        # energy = np.array([
+        #     np.sum(
+        #         (img1[seg[:,0], seg[:,1]] - img2[seg[:,0], seg[:,1] - off])**2
+        #     ) for off in range(curr_max_disp)
+        # ])
+        energy = np.zeros(curr_max_disp)
+        for off in range(curr_max_disp):
+            g_l = img1[seg[:,0], seg[:,1]]
+            g_r = img2[seg[:,0], seg[:,1] - off]
+            if (np.abs(g_r - 255) < 1).all():
+                energy[off] = 255**2 * g_r.shape[0]
+            else:
+                energy[off] = np.sum((g_l - g_r)**2)
         
         best = np.min(energy)
         disp = np.argmin(energy)
         energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
+        # energy2 = energy2[max(0, disp-keep_rad):min(disp+keep_rad+1, img1.shape[1])]
         next_best = np.min(energy2)
         disp2 = np.argmin(energy2)
         
@@ -65,23 +100,9 @@ def keypt_selection(img1, img2, calib):
     relmap = np.zeros_like(img1)
     relmap[relpts[:, 0], relpts[:, 1]] = reliab[relidx[:, 0]]
 
-    # ax = plt.axes(projection='3d')
-    # ax.view_init(0, 0)
-    # ax.set_zlim(0, 1000)
-    # ax.scatter(
-    #     segpix1[:, 0],
-    #     segpix1[:, 1],
-    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2],
-    #     s=1, c="r")
-    # ax.scatter(
-    #     relpts[:, 0],
-    #     relpts[:, 1],
-    #     img_3D[relpts[:, 0], relpts[:, 1], 2],
-    #     c="b")
-    # plt.show()
-    # return
+    
     # plt.imshow(img1, cmap="gray")
-    # plt.scatter(relpts[:, 1], relpts[:, 0], c="r")
+    # plt.scatter(relpts[:, 1], relpts[:, 0], c="g", s=5)
     # plt.show()
     # return
 
@@ -152,23 +173,48 @@ def keypt_selection(img1, img2, calib):
     all_clustered = np.array(all_clustered)
     all_std = np.std(img_3D[all_clustered[:, 0], all_clustered[:, 1], 2])
 
-    # ax = plt.axes(projection='3d')
-    # ax.view_init(0, 0)
-    # ax.set_xlim(0, 480)
-    # ax.set_ylim(0, 640)
-    # ax.set_zlim(0, 20)
-    # ax.scatter(
-    #     segpix1[:, 0],
-    #     segpix1[:, 1],
-    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2],
-    #     s=1, c="r")
-    # ax.scatter(
-    #     cluster_means[:, 0],
-    #     cluster_means[:, 1],
-    #     cluster_means[:, 2],
-    #     c="b")
+    
+    # plt.imshow(img1, cmap="gray")
+    # for cluster in clusters:
+    #     cluster = np.array(cluster)
+    #     plt.scatter(cluster[:, 1], cluster[:, 0])
+    # plt.scatter(cluster_means[:, 1], cluster_means[:, 0], c="r")
     # plt.show()
-    # assert False
+    # return
+    # ax = plt.axes(projection='3d')
+    # ax.view_init(40, 100)
+    # ax.invert_yaxis()
+    # ax.set_xlabel("$p_x$")
+    # ax.set_ylabel("$p_y$")
+    # ax.set_zlabel("Depth")
+    # ax.scatter(
+    #     cluster_means[:, 1],
+    #     cluster_means[:, 0],
+    #     cluster_means[:, 2],
+    #     c="red", alpha=0.2)
+    # z_axes = ax.get_zlim3d()
+    # ax.set_zlim(z_axes)
+    # z_bottom = z_axes[0]-20
+    # # ax.set_zlim(z_bottom, 350)
+    # ax.scatter(
+    #     segpix1[:, 1],
+    #     segpix1[:, 0],
+    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2], s=1, alpha=0.2, label="$D$")
+    # X = np.arange(640)
+    # Y = np.arange(480)
+    # X, Y = np.meshgrid(X, Y)
+    # img_test = np.float32(img_test) / 255
+    # ax.plot_surface(X, Y, np.atleast_2d(z_bottom), rstride=1, cstride=1, \
+    #     facecolors=img_test, alpha=0.5)
+    # ax.scatter(
+    #     cluster_means[:, 1],
+    #     cluster_means[:, 0],
+    #     cluster_means[:, 2],
+    #     c="darkorange", s=5, label="Keypoints")
+    # ax.tick_params(labelsize=8)
+    # ax.legend()
+    # plt.show()
+    # return
 
     # "Solidify" clusters for ordering
     solid_clusters = copy.deepcopy(clusters)

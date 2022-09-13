@@ -129,6 +129,25 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                 frontier.append(min_neigh)
         segments.append(segment)
 
+    # lines = []
+    # for c_id, adj in enumerate(adjacents):
+    #     curr = keypoints[c_id, :2].copy()
+    #     curr[0], curr[1] = curr[1], curr[0]
+    #     for n_id in adj:
+    #         neigh = keypoints[int(n_id), :2].copy()
+    #         neigh[0], neigh[1] = neigh[1], neigh[0]
+    #         lines.append([curr, neigh])
+    # lines = np.array(lines)
+    # lc = collections.LineCollection(lines, color="orange")
+    # fig, ax = plt.subplots()
+    # ax.imshow(img1, cmap="gray")
+    # for cluster in clusters:
+    #     cluster = np.array(cluster)
+    #     ax.scatter(cluster[:, 1], cluster[:, 0])
+    # ax.scatter(keypoints[:, 1], keypoints[:, 0], s=15, c="r")
+    # ax.add_collection(lc)
+    # plt.show()
+    # return
     # plt.figure(1)
     # plt.imshow(img1, cmap="gray")
     # for cluster in clusters:

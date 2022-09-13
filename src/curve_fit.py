@@ -126,12 +126,51 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         bound_rads.append(bound_rad)
         if bound_rad > bound_thresh:
             lowest_nonzero = min(lowest_nonzero, bound_rad)
+        
+        # plt.clf()
+        # plt.scatter(x, data, label="Extra Points", c="b")
+        # # plt.xlim(plt.xlim())
+        # # plt.ylim(plt.ylim())
+        # x_key = keypoint_idxs[start:end+1]
+        # depth_key = [init_pts[i, 2] for i in x_key]
+        # plt.scatter(x_key, depth_key, label="Keypoints", c="r")
+        # plt.plot(x, line_pts, c="darkcyan", linestyle="--", label="Fitted Line")
+        # curr_x = keypoint_idxs[key_ord]
+        # curr_y = keypoints[key_id, 2]
+        # plt.scatter(curr_x, curr_y, c="lime", label="Current Point")
+        # plt.arrow(curr_x, curr_y, 0, -1*bound_rad, color="goldenrod", \
+        #     label="Boundary Radius", width=0.01)
+        # plt.arrow(curr_x, curr_y, 0, bound_rad, color="goldenrod")
+
+        # plt.xlabel("Order")
+        # plt.ylabel("Depth")
+        # plt.tick_params(labelsize=10)
+        # plt.legend()
+        # plt.show()
     for key_ord, (key_id, bound_rad) in enumerate(zip(order, bound_rads)):
         if bound_rad <= bound_thresh:
             bound_rad = lowest_nonzero
         lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
         upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
 
+    # folder_num = 1
+    # file_num = 1
+    # gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
+    # cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
+    # K1 = cv_file.getNode("K1").mat()
+    # depths = gt_b[:, 2].copy()
+    # gt_b /= np.expand_dims(depths, 1)
+    # gt_b = (K1 @ gt_b.copy().T).T
+    # gt_b[:, 2] = depths
+    # gk = 3
+    # gt_knots = np.concatenate(
+    #     (np.repeat(0, gk),
+    #     np.linspace(0, 1, gt_b.shape[0]-gk+1),
+    #     np.repeat(1, gk))
+    # )
+    # gt_tck = interp.BSpline(gt_knots, gt_b, gk)
+    # gt_spline = gt_tck(np.linspace(0, 1, 150))
+    
     # ax = plt.axes(projection="3d")
     # ax.set_xlim(0, 480)
     # ax.set_ylim(0, 640)
@@ -140,20 +179,25 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     #     gt_spline[:, 1],
     #     gt_spline[:, 0],
     #     gt_spline[:, 2],
-    #     c="g")
+    #     c="g", label="Ground Truth")
     # ax.scatter(
     #     keypoints[:, 0],
     #     keypoints[:, 1],
     #     keypoints[:, 2],
-    #     s=10, c="r"
+    #     s=5, c="r", label="Keypoints", alpha=0.5
     # )
-    # ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
+    # ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange", label="Boundary")
     # ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
     # u = np.arange(init_pts.shape[0])
     # plt.plot(u, gt_tck(np.linspace(0, 1, u.shape[0]))[:, 2], c="g")
     # plt.scatter(keypoint_idxs, keypoints[order, 2], c="r")
     # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
     # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
+    # ax.set_xlabel("$p_x$")
+    # ax.set_ylabel("$p_y$")
+    # ax.set_zlabel("Depth")
+    # ax.tick_params(labelsize=8)
+    # ax.legend()
     # plt.show()
     # return
 
@@ -245,6 +289,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
     # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
     # plt.show()
+    # return
 
     b = c[:, 2]
     spline_db, dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
@@ -345,6 +390,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
     ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
     plt.show()
+    return tck
 
 
 def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
