@@ -4,3 +4,5 @@ src/Bo_Lu/__pycache__
 results.xlsx
 results_real.xlsx
 spline174.npy
+.DS_Store
+spline209.npy
