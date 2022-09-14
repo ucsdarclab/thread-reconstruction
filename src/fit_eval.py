@@ -100,7 +100,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         c="r",
         label="Our Result"
     )
-    np.save("spline174.npy", final_spline)
+    np.save("spline209.npy", final_spline)
     if gt_tck is not None:
         ax1.plot(
             gt_spline[:, 0],
@@ -329,7 +329,7 @@ if __name__ == "__main__":
         data = []
         header = ["file", "left mean err", "left max error", "right mean err", "right max err"]
         footer = ["Failed"]
-        for folder_num, file_num in files[-1:]:
+        for folder_num, file_num in files[6:7]:
             file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
             file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
             # TODO convert back if needed

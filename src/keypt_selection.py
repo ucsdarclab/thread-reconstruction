@@ -178,39 +178,44 @@ def keypt_selection(img1, img2, Q):
     # for cluster in clusters:
     #     cluster = np.array(cluster)
     #     plt.scatter(cluster[:, 1], cluster[:, 0])
-    # plt.scatter(cluster_means[:, 1], cluster_means[:, 0], c="r")
+    # plt.scatter(cluster_means[:, 1], cluster_means[:, 0], s=50, c="r", edgecolors="white")
     # plt.show()
     # return
     # ax = plt.axes(projection='3d')
     # ax.view_init(40, 100)
     # ax.invert_yaxis()
-    # ax.set_xlabel("$p_x$")
-    # ax.set_ylabel("$p_y$")
+    # ax.set_xlabel("Image $x$")
+    # ax.set_ylabel("Image $y$")
     # ax.set_zlabel("Depth")
     # ax.scatter(
     #     cluster_means[:, 1],
     #     cluster_means[:, 0],
     #     cluster_means[:, 2],
-    #     c="red", alpha=0.2)
-    # z_axes = ax.get_zlim3d()
+    #     c="red", alpha=0.5, zorder=1)
+    # z_axes_1, z_axes_2 = ax.get_zlim3d()
+    # z_axes = (z_axes_1, z_axes_2)
     # ax.set_zlim(z_axes)
-    # z_bottom = z_axes[0]-20
+    # z_bottom = z_axes[0]-10
     # # ax.set_zlim(z_bottom, 350)
     # ax.scatter(
     #     segpix1[:, 1],
     #     segpix1[:, 0],
-    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2], s=1, alpha=0.2, label="$D$")
+    #     img_3D[segpix1[:, 0], segpix1[:, 1], 2], s=1, c="tab:blue", alpha=0.2, zorder=3)
+    # ax.scatter(
+    #     segpix1[0:1, 1],
+    #     segpix1[0:1, 0],
+    #     img_3D[segpix1[0:1, 0], segpix1[0:1, 1], 2], s=5, c="tab:blue", label="Segmented Point Depths")
     # X = np.arange(640)
     # Y = np.arange(480)
     # X, Y = np.meshgrid(X, Y)
     # img_test = np.float32(img_test) / 255
     # ax.plot_surface(X, Y, np.atleast_2d(z_bottom), rstride=1, cstride=1, \
-    #     facecolors=img_test, alpha=0.5)
+    #     facecolors=img_test, alpha=0.5, zorder=2)
     # ax.scatter(
     #     cluster_means[:, 1],
     #     cluster_means[:, 0],
     #     cluster_means[:, 2],
-    #     c="darkorange", s=5, label="Keypoints")
+    #     c="darkorange", label="Keypoints", edgecolors="black", zorder=20)
     # ax.tick_params(labelsize=8)
     # ax.legend()
     # plt.show()

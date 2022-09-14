@@ -138,13 +138,13 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     #         neigh[0], neigh[1] = neigh[1], neigh[0]
     #         lines.append([curr, neigh])
     # lines = np.array(lines)
-    # lc = collections.LineCollection(lines, color="orange")
+    # lc = collections.LineCollection(lines, color="orange", edgecolors="black")
     # fig, ax = plt.subplots()
     # ax.imshow(img1, cmap="gray")
     # for cluster in clusters:
     #     cluster = np.array(cluster)
     #     ax.scatter(cluster[:, 1], cluster[:, 0])
-    # ax.scatter(keypoints[:, 1], keypoints[:, 0], s=15, c="r")
+    # ax.scatter(keypoints[:, 1], keypoints[:, 0], s=50, c="r", edgecolors="black")
     # ax.add_collection(lc)
     # plt.show()
     # return
