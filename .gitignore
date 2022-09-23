@@ -6,3 +6,5 @@ results_real.xlsx
 spline174.npy
 .DS_Store
 spline209.npy
+*.npy
+*.mp4
