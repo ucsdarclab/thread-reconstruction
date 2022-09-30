@@ -9,6 +9,10 @@ import sys
 OPENCV_MATCHING = True
 TESTING = False
 
+"""
+TODO Remove altogether?
+"""
+
 gt = np.array([
     [259, 337, 314],
     [256, 327, 304],

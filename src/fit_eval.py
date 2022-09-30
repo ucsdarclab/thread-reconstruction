@@ -4,25 +4,20 @@ import numpy as np
 import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
-import scipy.stats
 import cv2
-import sys
-import csv
 
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
 from curve_fit import curve_fit
 
-sys.path.append("/Users/neelay/ARClabXtra/thread_reconstruction/src/Bo_Lu")
-from Bo_Lu.pixel_ordering import order_pixels
-from Bo_Lu.ssp_reconstruction import ssp_reconstruction
+"""
+TODO: MOVE TEST FILES AND UPDATE CODE ACCORDINGLY
+"""
 
-SIMULATION = False
-ERODE = False
-COMPARE = False
+SIMULATION = True
 STORE = False
 
-def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
+def fit_eval(img1, img2, calib, gt_tck=None):
     # Read in camera matrix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -37,38 +32,18 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
         flags=cv2.CALIB_ZERO_DISPARITY)
 
-    if not SIMULATION:
-        map1x, map1y = cv2.initUndistortRectifyMap(K1, D1, R1, P1, img_size, cv2.CV_16SC2)
-        map2x, map2y = cv2.initUndistortRectifyMap(K2, D2, R2, P2, img_size, cv2.CV_16SC2)
-
-        # plt.figure(1)
-        # plt.imshow(img1, cmap="gray")
-        # plt.figure(2)
-        # plt.imshow(img2, cmap="gray")
-        # plt.show()
-        img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
-        img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
-        # plt.figure(1)
-        # plt.imshow(img1, cmap="gray")
-        # plt.figure(2)
-        # plt.imshow(img2, cmap="gray")
-        # plt.show()
-        # return
-
-        img1 = np.where(img1==0, 255, img1)
-        img2 = np.where(img2==0, 255, img2)
     img1 = np.float32(img1)
     img2 = np.float32(img2)
     
-    # Our method
+    # Perform reconstruction
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
     final_tck = curve_fit(img1, img_3D, keypoints, grow_paths, order)
     final_tck.c = change_coords(final_tck.c, P1[:, :3])
-
-
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
-    if gt_tck is not None:
+
+    # Evaluate reconstruction accuracy
+    if SIMULATION:
         gt_spline = gt_tck(np.linspace(0, 1, 150))
 
         ours_len, gt_len, diff = length_error(final_tck, gt_tck)
@@ -87,6 +62,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
             % (left, left_max, right, right_max))
 
+    # Visualize the result
     plt.figure(1)
     ax1 = plt.axes(projection='3d')
     ax1.tick_params(labelsize=8)
@@ -100,7 +76,6 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
         c="r",
         label="Our Result"
     )
-    np.save("spline209.npy", final_spline)
     if gt_tck is not None:
         ax1.plot(
             gt_spline[:, 0],
@@ -109,41 +84,7 @@ def fit_eval(img1, img2, calib, left_start=None, right_start=None, gt_tck=None):
             label="Ground Truth",
             c="g")
         ax1.legend()
-        # gt_pts = np.concatenate((gt_tck(np.linspace(0, 1, num_eval_pts)), gt_tck(spots2)))
-        # ours_pts = np.concatenate((final_tck(spots1), final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], num_eval_pts))))
-        # ax1.scatter(
-        #     gt_pts[:, 0],
-        #     gt_pts[:, 1],
-        #     gt_pts[:, 2]
-        # )
-        # ax1.scatter(
-        #     ours_pts[:, 0],
-        #     ours_pts[:, 1],
-        #     ours_pts[:, 2]
-        # )
     set_axes_equal(ax1)
-
-    # Bo Lu's method
-    if COMPARE:
-        ord1, ord2, steps1, steps2 = order_pixels(img1, img2, left_start, right_start)
-        X_cloud = ssp_reconstruction(ord1, ord2, steps1, steps2, calib, folder_num, file_num)
-        ord1 = ord1.T
-        ord2 = ord2.T
-
-        plt.figure(2)
-        ax2 = plt.axes(projection='3d')
-        min_len = min(ord1.shape[0], ord2.shape[0])
-        X_cloud = X_cloud.T
-        for row in X_cloud:
-            row_cat = np.stack((ord1[:min_len, 0], ord1[:min_len, 1], row), axis=1)
-            rescaled = change_coords(row_cat, P1[:, :3])
-            ax2.scatter(rescaled[:, 0], rescaled[:, 1], rescaled[:, 2])
-        ax2.plot(
-            gt_spline[:, 0],
-            gt_spline[:, 1],
-            gt_spline[:, 2],
-            c="g")
-        set_axes_equal(ax2)
     if not STORE:
         plt.show()
     if SIMULATION:
@@ -180,13 +121,11 @@ def curve_error(ours, gt, num_eval_pts):
         res1 = scipy.optimize.shgo(
             objective,
             bounds=bounds,
-            # method="bounded",
             args=(gt_pt,)
         )
         res2 = scipy.optimize.differential_evolution(
             objective,
             bounds=bounds,
-            # method="bounded",
             args=(gt_pt,)
         )
         if objective(res1.x, gt_pt) < objective(res2.x, gt_pt):
@@ -257,43 +196,28 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 if __name__ == "__main__":
+    # Run reconstruction on datasets
+    # Simulated Dataset
     if SIMULATION:
-        # folder_num = 9
-        # file_num = 3
         data = []
         header = ["file", "ours_len", "gt_len", "diff", "e_mean", "e_max"]
         footer = ["Failed"]
-        for folder_num in range(1,2):
-            for file_num in range(1,2):
+        for folder_num in range(1,11):
+            for file_num in range(1,5):
+                # Choose correct calibration matrix
                 if folder_num < 5:
                     fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
                     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
                 else:
                     fileb = "../Blender_imgs/blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
                     calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration_new.yaml"
+                # Extract and color segment left and right images
                 imgb = cv2.imread(fileb)
                 imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
                 img1 = imgb[:, :640]
                 img2 = imgb[:, 640:]
                 img1 = np.where(img1>=200, 255, img1)
                 img2 = np.where(img2>=200, 255, img2)
-
-                if ERODE:
-                    img1_dig = np.where(img1==255, 0, 1).astype("uint8")
-                    img2_dig = np.where(img2==255, 0, 1).astype("uint8")
-                    kernel = np.ones((2, 2))
-                    img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
-                    img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
-                    img1 = np.where(img1_dig==1, img1, 255)
-                    img2 = np.where(img2_dig==1, img2, 255)
-
-                left_start = None
-                right_start = None
-                if COMPARE:
-                    left_starts = np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
-                    right_starts = np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
-                    left_start = left_starts[file_num-1]
-                    right_start = right_starts[file_num-1]
 
                 gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
                 cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
@@ -307,72 +231,40 @@ if __name__ == "__main__":
                 gt_spline = gt_tck(np.linspace(0, 1, 150))
 
                 try:
-                    out = list(fit_eval(img1, img2, calib, left_start, right_start, gt_tck))
+                    out = list(fit_eval(img1, img2, calib, gt_tck))
                     out = ["%d_%d" % (folder_num, file_num)] + out
                     data.append(out)
                 except:
                     footer.append("%d_%d" % (folder_num, file_num))
-
+        # Store results conveniently in csv file
         if STORE:
             with open("results.csv", "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(header)
                 writer.writerows(data)
                 writer.writerow(footer)
-
-                
+    # Real dataset        
     else:
-        # folder_num = 2
-        # file_num = 187
         files = [(1, 99), (1, 119), (2, 59), (2, 72), (2, 116), \
             (2, 149), (2, 159), (2,174), (2, 187), (2, 209)]
         data = []
         header = ["file", "left mean err", "left max error", "right mean err", "right max err"]
         footer = ["Failed"]
-        for folder_num, file_num in files[6:7]:
+        for folder_num, file_num in files:
             file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
             file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
-            # TODO convert back if needed
             calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
             img1 = cv2.imread(file1)
             img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
             img2 = cv2.imread(file2)
             img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-            # plt.figure(1)
-            # plt.imshow(img1, cmap="gray")
-            # plt.figure(2)
-            # plt.imshow(img2, cmap="gray")
-            # plt.show()
 
-            if ERODE:
-                img1_dig = np.where(img1==255, 0, 1).astype("uint8")
-                img2_dig = np.where(img2==255, 0, 1).astype("uint8")
-                kernel = np.ones((2, 2))
-                img1_dig = cv2.erode(img1_dig, kernel, iterations=1)
-                img2_dig = cv2.erode(img2_dig, kernel, iterations=1)
-                img1 = np.where(img1_dig==1, img1, 255)
-                img2 = np.where(img2_dig==1, img2, 255)
-
-            #TODO implement
-            left_starts = np.zeros((2, 2))#np.load("../Blender_imgs/blend%d/left%d.npy" % (folder_num, folder_num))
-            right_starts = np.zeros((2, 2))#np.load("../Blender_imgs/blend%d/right%d.npy" % (folder_num, folder_num))
-
-            gt_tck = None
-
-            # ax = plt.axes(projection='3d')
-            # ax.plot(
-            #     gt_spline[:, 0],
-            #     gt_spline[:, 1],
-            #     gt_spline[:, 2],
-            #     c="g")
-            # set_axes_equal(ax)
-            # plt.show()
             # try:
-            out = list(fit_eval(img1, img2, calib, left_starts, right_starts))
+            out = list(fit_eval(img1, img2, calib))
             out = ["%d_%d" % (folder_num, file_num)] + out
             data.append(out)
             # except:
-            #     footer.append("%d_%d" % (folder_num, file_num))
+            footer.append("%d_%d" % (folder_num, file_num))
         if STORE:
             with open("results_real.csv", "w", newline="") as f:
                 writer = csv.writer(f)

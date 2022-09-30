@@ -4,15 +4,10 @@ from matplotlib import collections
 from matplotlib import colors as mcolors
 import numpy as np
 import cv2
-from keypt_selection import keypt_selection
-import sys
-import copy
-import time
 
 def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents):
-    # Partition growpaths into individual disjoint parts
-    # grow_lists = [np.array(list(path)) for path in grow_paths]
-    # visiteds = [[False for i in len(path)] for path in grow_paths]
+    # Partition growpaths into individual disjoint parts using BFS
+    # TODO simplify? This is only useful for endpoints at the moment
     grow_parts = [[] for c_id in range(len(grow_paths))]
     part_adjs = [[] for c_id in range(len(grow_paths))]
     DIRECTIONS = np.array([[1, 0], [-1, 0], [0, 1], [0, -1],
@@ -22,10 +17,8 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
         path_list = list(path)
         visited = [False for i in range(len(path))]
         pix2idx = {pix:i for i, pix in enumerate(path)}
-        # visiteds[i][0] = True
         num_visited = 0
         source = 0
-        # frontier = [path_list[0]]
         while num_visited < len(visited):
             while visited[source]:
                 source += 1
@@ -61,34 +54,11 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
             if len(part) > min_size:
                 grow_parts[c_id].append(part)
                 part_adjs[c_id].append(part_adj)
-    
-    # for c_id, parts in enumerate(grow_parts):
-    #     plt.clf()
-    #     plt.imshow(img1, cmap="gray")
-    #     adj_nums = []
-    #     for i, part in enumerate(parts):
-    #         part = np.array(part)
-    #         plt.scatter(part[:, 1], part[:, 0])
-    #         adj_nums.append(len(part_adjs[c_id][i]))
-    #         plt.text(part[-1, 1], part[-1, 0], str(adj_nums[-1]))
-    #     plt.scatter(keypoints[c_id, 1], keypoints[c_id, 0], c="turquoise")
-    #     plt.show()
-
-    # Ignore fake intersection points
-    # TODO Implement intersection and occlusion handling
-    # ignore = set()
-    # for c_id in range(len(keypoints)):
-    #     num_neighs = len(adjacents[c_id])
-    #     # parts = grow_parts[c_id]
-    #     part_adj_lens = [len(part_adj) for part_adj in part_adjs[c_id]]
-    #     if num_neighs > 1 and num_neighs in part_adj_lens:#len(neighs) > 2 and len(parts) == 1:
-    #         ignore.add(c_id)
 
     # Extract curve segments, avoiding intersections
+    # TODO Only find one segment, so using segment list is unnecessary
     segments = []
-    # prematurely visit intersection/ignored keypoints
-    visited = [0 for c_id in range(len(keypoints))]#[1 if c_id in ignore else 0 for c_id in range(len(keypoints)) ]
-    #[0 if len(neighs) <= 2 else 1 for neighs in adjacents]
+    visited = [0 for c_id in range(len(keypoints))]
     outer_frontier = [c_id for c_id, neighs in enumerate(adjacents) if len(neighs) <= 2]
     while True:
         # Choose an unvisited source with only 1 unvisited neighbor
@@ -111,11 +81,10 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
         # TODO clean up use of frontier
         frontier = [source]
         visited[source] = 1
-        segment = []#keypoints[source]]
+        segment = []
         while len(frontier) > 0:
-            #assert len(frontier) == 1, "Curve is not linked list"
             curr = frontier.pop()
-            segment.append(curr)#keypoints[curr])
+            segment.append(curr)
             min_dist = np.inf
             min_neigh = None
             for neigh in adjacents[curr]:
@@ -128,40 +97,6 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                 visited[min_neigh] = 1
                 frontier.append(min_neigh)
         segments.append(segment)
-
-    # lines = []
-    # for c_id, adj in enumerate(adjacents):
-    #     curr = keypoints[c_id, :2].copy()
-    #     curr[0], curr[1] = curr[1], curr[0]
-    #     for n_id in adj:
-    #         neigh = keypoints[int(n_id), :2].copy()
-    #         neigh[0], neigh[1] = neigh[1], neigh[0]
-    #         lines.append([curr, neigh])
-    # lines = np.array(lines)
-    # lc = collections.LineCollection(lines, color="orange", edgecolors="black")
-    # fig, ax = plt.subplots()
-    # ax.imshow(img1, cmap="gray")
-    # for cluster in clusters:
-    #     cluster = np.array(cluster)
-    #     ax.scatter(cluster[:, 1], cluster[:, 0])
-    # ax.scatter(keypoints[:, 1], keypoints[:, 0], s=50, c="r", edgecolors="black")
-    # ax.add_collection(lc)
-    # plt.show()
-    # return
-    # plt.figure(1)
-    # plt.imshow(img1, cmap="gray")
-    # for cluster in clusters:
-    #     cluster = np.array(cluster)
-    #     plt.scatter(cluster[:, 1], cluster[:, 0])
-    # plt.figure(2)
-    # plt.imshow(img1, cmap="gray")
-    # plt.scatter(keypoints[:, 1], keypoints[:, 0])
-    # for segment in segments:
-    #     segment = keypoints[np.array(segment)]
-    #     plt.scatter(segment[:, 1], segment[:, 0],\
-    #         c=np.arange(0, segment.shape[0]), cmap="hot")
-    # plt.show()
-    # return
     
     # Extend out endpoints
     for segment in segments:
@@ -184,35 +119,4 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                     keypoints = np.concatenate((keypoints, np.expand_dims(new_end, 0)), axis=0)
                     grow_paths.append({tuple(pix) for pix in part})
 
-    # TODO
-    "Join segments to form single ordering"
     return img_3D, keypoints, grow_paths, segments[0]
-
-if __name__ == "__main__":
-    # file1 = "../Sarah_imgs/thread_1_left_final.jpg"#sys.argv[1]
-    # file2 = "../Sarah_imgs/thread_1_right_final.jpg"#sys.argv[2]
-    # img1 = cv2.imread(file1)
-    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    # img2 = cv2.imread(file2)
-    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
-    # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
-    fileb = "../Blender_imgs/blend_thread_1.jpg"
-    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend1_calibration.yaml"
-    imgb = cv2.imread(fileb)
-    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-    img1 = imgb[:, :640]
-    img2 = imgb[:, 640:]
-    img1 = np.where(img1>=200, 255, img1)
-    img2 = np.where(img2>=200, 255, img2)
-    # plt.figure(1)
-    # plt.imshow(img1, cmap="gray")
-    # plt.figure(2)
-    # plt.imshow(img2, cmap="gray")
-    # plt.show()
-    # assert False
-    # test()
-    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = \
-        keypt_selection(img1, img2, calib)
-
-    keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)

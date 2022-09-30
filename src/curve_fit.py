@@ -1,5 +1,4 @@
 import matplotlib.pyplot as plt
-import plotly.graph_objects as go
 import matplotlib.image as mpimg
 import numpy as np
 import scipy.optimize
@@ -7,16 +6,11 @@ import scipy.integrate
 import scipy.interpolate as interp
 import scipy.stats
 import cv2
-from stereo_matching import stereo_match
-from keypt_selection import keypt_selection
-from keypt_ordering import keypt_ordering
-import sys
 
 def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
     segpix1 = np.argwhere(img1<250)
-
     size_thresh = segpix1.shape[0] // 100
     ang_thresh = np.pi/5
     interval_floor = size_thresh // 2
@@ -56,9 +50,10 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             p2pt = filtered_pix - np.expand_dims(p2, 0)
             proj1 = np.dot(p1pt, p1p2) / np.linalg.norm(p1p2)
             proj2 = np.dot(p2pt, -1*p1p2) / np.linalg.norm(p1p2)
+
+            # Use angle to prune away more points
             ang1 = np.arccos(proj1 / (np.linalg.norm(p1pt, axis=1)+1e-7))
             ang2 = np.arccos(proj2 / (np.linalg.norm(p2pt, axis=1)+1e-7))
-
             mask1 = ang1 < ang_thresh
             mask2 = ang2 < ang_thresh
             mask = np.logical_and(mask1, mask2)
@@ -70,18 +65,9 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             filtered_pts = filtered_pts[mask_idxs]
             proj = proj1[mask_idxs]
 
-
-            # plt.imshow(img1, cmap="gray")
-            # plt.scatter(filtered_pix[:, 1], filtered_pix[:, 0])
-            # plt.scatter([p1[1], p2[1]], [p1[0], p2[0]], c="r")
-            # plt.show()
-
             # Choose evenly spaced points, based on projections
             pt2ord = np.argsort(proj)
             floor = interval_floor if interval_floor<np.max(proj) else max(np.min(proj), 0)
-            p1d = keypoints[key_id, 2]
-            p2d = keypoints[next_id, 2]
-            p1p2d = p2d - p1d
             intervals = np.linspace(interval_floor, np.max(proj), num_samples)
             int_idx = 0
             for pt_idx in pt2ord:
@@ -89,7 +75,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
                     (filtered_pix[pt_idx] == keypoints[next_id, :2]).all():
                     break
                 if proj[pt_idx] >= intervals[int_idx]:
-                    # Use linearly interpolated depth between keypoints
                     init_pts.append(filtered_pts[pt_idx])
                     int_idx += 1
     keypoint_idxs.append(len(init_pts))
@@ -126,85 +111,17 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         bound_rads.append(bound_rad)
         if bound_rad > bound_thresh:
             lowest_nonzero = min(lowest_nonzero, bound_rad)
-        
-        # plt.clf()
-        # plt.scatter(x, data, label="Extra Points", c="b")
-        # # plt.xlim(plt.xlim())
-        # # plt.ylim(plt.ylim())
-        # x_key = keypoint_idxs[start:end+1]
-        # depth_key = [init_pts[i, 2] for i in x_key]
-        # plt.scatter(x_key, depth_key, label="Keypoints", c="r")
-        # plt.plot(x, line_pts, c="darkcyan", linestyle="--", label="Fitted Line")
-        # curr_x = keypoint_idxs[key_ord]
-        # curr_y = keypoints[key_id, 2]
-        # plt.scatter(curr_x, curr_y, c="lime", label="Current Point")
-        # plt.arrow(curr_x, curr_y, 0, -1*bound_rad, color="goldenrod", \
-        #     label="Boundary Radius", width=0.01)
-        # plt.arrow(curr_x, curr_y, 0, bound_rad, color="goldenrod")
-
-        # plt.xlabel("Order")
-        # plt.ylabel("Depth")
-        # plt.tick_params(labelsize=10)
-        # plt.legend()
-        # plt.show()
+    # Set bounds, accounting for minimum radius threshold
     for key_ord, (key_id, bound_rad) in enumerate(zip(order, bound_rads)):
         if bound_rad <= bound_thresh:
             bound_rad = lowest_nonzero
         lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
         upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
 
-    # folder_num = 1
-    # file_num = 1
-    # gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
-    # cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
-    # K1 = cv_file.getNode("K1").mat()
-    # depths = gt_b[:, 2].copy()
-    # gt_b /= np.expand_dims(depths, 1)
-    # gt_b = (K1 @ gt_b.copy().T).T
-    # gt_b[:, 2] = depths
-    # gk = 3
-    # gt_knots = np.concatenate(
-    #     (np.repeat(0, gk),
-    #     np.linspace(0, 1, gt_b.shape[0]-gk+1),
-    #     np.repeat(1, gk))
-    # )
-    # gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-    # gt_spline = gt_tck(np.linspace(0, 1, 150))
-    
-    # ax = plt.axes(projection="3d")
-    # ax.set_xlim(0, 480)
-    # ax.set_ylim(0, 640)
-    # ax.set_zlim(5, 15)
-    # ax.plot(
-    #     gt_spline[:, 1],
-    #     gt_spline[:, 0],
-    #     gt_spline[:, 2],
-    #     c="g", label="Ground Truth")
-    # ax.scatter(
-    #     keypoints[:, 0],
-    #     keypoints[:, 1],
-    #     keypoints[:, 2],
-    #     s=5, c="r", label="Keypoints", alpha=0.5
-    # )
-    # ax.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange", label="Boundary")
-    # ax.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
-    # u = np.arange(init_pts.shape[0])
-    # plt.plot(u, gt_tck(np.linspace(0, 1, u.shape[0]))[:, 2], c="g")
-    # plt.scatter(keypoint_idxs, keypoints[order, 2], c="r")
-    # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
-    # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
-    # ax.set_xlabel("$p_x$")
-    # ax.set_ylabel("$p_y$")
-    # ax.set_zlabel("Depth")
-    # ax.tick_params(labelsize=8)
-    # ax.legend()
-    # plt.show()
-    # return
-
     "Set up optimization"
     # initialize 3D spline
     d = 4
-    num_ctrl = 15#init_pts.shape[0] // (2*d)
+    num_ctrl = 15
     print(num_ctrl)
 
     dists = np.linalg.norm(init_pts[1:, :2] - init_pts[:-1, :2], axis=1)
@@ -212,7 +129,6 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
     u = np.zeros(init_pts.shape[0])
     u[1:] = np.cumsum(dists) * dists.shape[0]
     u[-1] = dists.shape[0]
-    # u = np.arange(0, init_pts.shape[0])
 
     key_weight = init_pts.shape[0] / keypoints.shape[0]
     w = np.ones_like(u)
@@ -223,14 +139,14 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
         np.repeat(u[-1], d))
     )
 
+    # Set depths to follow centerline between boundaries
     low_constr = interp.interp1d(u[keypoint_idxs], lower[:, 2])
     high_constr = interp.interp1d(u[keypoint_idxs], upper[:, 2])
     center = (low_constr(u) + high_constr(u))/2
     init_pts[:, 2] = center
-    # center = interp.interp1d(u[keypoint_idxs], key_line_pts)
-    # init_pts[:, 2] = center(u)
 
-    # Get endpoint trends
+    # Get endpoint trends to get endpoint constraints
+    # TODO is second iteration of line fitting necessary?
     endpts = []
     slopes = []
     endpt_ids = [order[0], order[-1]]
@@ -254,46 +170,19 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             slopes.append(slope)
     init_pts[0, 2] = endpts[0]
     init_pts[-1, 2] = endpts[-1]
-    tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
 
+    # Fit spline to initial points
+    tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
     t = tck[0]
     c = np.array(tck[1]).T
     k = tck[2]
     tck = interp.BSpline(t, c, k)
     init_spline = tck(np.linspace(0, u[-1], 150))
 
-    # plt.imshow(img1, cmap="gray")
-    # plt.plot(init_pts[:, 1], init_pts[:, 0])
-    # plt.plot(init_spline[:, 1], init_spline[:, 0])
-    # plt.scatter(init_pts[:, 1], init_pts[:, 0], c="r")
-    # plt.show()
-    # return
-
-    # ax = plt.axes(projection="3d")
-    # ax.set_xlim(0, 480)
-    # ax.set_ylim(0, 640)
-    # ax.set_zlim(5, 15)
-    # ax.plot(
-    #     gt_spline[:, 1],
-    #     gt_spline[:, 0],
-    #     gt_spline[:, 2],
-    #     c="g")
-    # ax.plot(
-    #     init_spline[:, 0],
-    #     init_spline[:, 1],
-    #     init_spline[:, 2],
-    #     c="b")
-    # plt.show()
-    # plt.plot(u, tck(u)[:, 2], c="b")
-    # plt.scatter(keypoint_idxs, keypoints[order, 2], c="r")
-    # plt.plot(keypoint_idxs, lower[:, 2], c="turquoise")
-    # plt.plot(keypoint_idxs, upper[:, 2], c="turquoise")
-    # plt.show()
-    # return
-
     b = c[:, 2]
     spline_db, dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
 
+    # Collect boundary and endpoint constraints
     constraints = []
     for p in u:
         constraints.append(
@@ -320,12 +209,12 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
             {
                 "type":"eq",
                 "fun":endpt_constr,
-                # "jac":endpt_grad,
                 "args": (knots, d, side, constr, der)
             }
         )
     
     
+    # Solve MVS optimization
     final = scipy.optimize.minimize(
         objective,
         b,
@@ -346,53 +235,7 @@ def curve_fit(img1, img_3D, keypoints, grow_paths, order):
 
     return tck
 
-    # plt.figure(1)
-    # ax1 = plt.axes(projection="3d")
-    # ax1.set_xlim(0, 480)
-    # ax1.set_ylim(0, 640)
-    # # ax1.set_zlim(5, 15)
-    # ax1.plot(
-    #     gt_spline[:, 1],
-    #     gt_spline[:, 0],
-    #     gt_spline[:, 2],
-    #     c="g")
-    # ax1.plot(
-    #     init_spline[:, 0],
-    #     init_spline[:, 1],
-    #     init_spline[:, 2],
-    #     c="b")
-    # plt.figure(2)
-    ax2 = plt.axes(projection="3d")
-    # ax2.set_xlim(0, 480)
-    # ax2.set_ylim(0, 640)
-    # ax2.set_zlim(5, 15)
-    # ax2.plot(
-    #     gt_spline[:, 1],
-    #     gt_spline[:, 0],
-    #     gt_spline[:, 2],
-    #     c="g")
-    # ax2.plot(
-    #     init_spline[:, 0],
-    #     init_spline[:, 1],
-    #     init_spline[:, 2],
-    #     c="turquoise")
-    ax2.plot(
-        init_pts[:, 0],
-        init_pts[:, 1],
-        init_pts[:, 2],
-        c="turquoise")
-    ax2.plot(
-        final_spline[:, 0],
-        final_spline[:, 1],
-        final_spline[:, 2],
-        c="b")
-    ax2.scatter(keypoints[:, 0], keypoints[:, 1], keypoints[:, 2], c="r")
-    ax2.plot(lower[:, 0], lower[:, 1], lower[:, 2], c="orange")
-    ax2.plot(upper[:, 0], upper[:, 1], upper[:, 2], c="orange")
-    plt.show()
-    return tck
-
-
+# MVS objective function
 def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     b = np.array([val for val in args])
     spline = interp.BSpline(knots, b, d)
@@ -412,28 +255,12 @@ def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     curve = [integrand(x) for x in u]
     return scipy.integrate.simpson(curve, u)
 
-# def start_constr(args, knots, d, start, der, A):
-#     b = np.array([val for val in args])
-#     tck = interp.BSpline(knots, b, d)
-#     spline = interp.splev([start], tck, der)
-#     return spline - A
-
-# def end_constr(args, knots, d, end, der, B):
-#     b = np.array([val for val in args])
-#     tck = interp.BSpline(knots, b, d)
-#     spline = interp.splev([end], tck, der)
-#     return spline - B
-
+# Constraint functions and gradients
 def endpt_constr(args, knots, d, side, constr, der):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
     spline = interp.splev([knots[side]], tck, der)
     return spline - constr
-
-# def endpt_grad(args, side, der, constr):
-#     grad = np.zeros(len(args))
-#     grad[side] = 1
-#     return grad
 
 def lower_bound(args, knots, d, constr, x, grad):
     b = np.array([val for val in args])
@@ -453,6 +280,7 @@ def upper_bound(args, knots, d, constr, x, grad):
 def upper_grad(args, knots, d, constr, x, grad):
     return [-1*der(x) for der in grad]
 
+# Spline gradients
 def dspline_grads(b, knots, d):
     n = b.shape[0]
     # Organize useful coefficients conveniently
@@ -487,6 +315,7 @@ def dspline_grads(b, knots, d):
         
     return grad0, grad1, grad2, grad3
 
+# MVS objective function gradient
 def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     b = np.array([val for val in args])
     spline = interp.BSpline(knots, b, d)
@@ -498,9 +327,9 @@ def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
         ds = dspline(x)
         d2s = d2spline(x)
         d3s = d3spline(x)
-        Gs = grad1_spl[j](x)#[der(x) for der in grad1_spl]
-        G2s = grad2_spl[j](x)#[der(x) for der in grad2_spl]
-        G3s = grad3_spl[j](x)#[der(x) for der in grad3_spl]
+        Gs = grad1_spl[j](x)
+        G2s = grad2_spl[j](x)
+        G3s = grad3_spl[j](x)
 
         dK = (d3s*(1+ds**2)**(3/2) - 3/2*(1+ds**2)**(1/2)*(2*ds)*d2s**2) \
             / (1+ds**2)**3
@@ -523,33 +352,3 @@ def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     u = np.linspace(knots[0], knots[-1], 100)
     curves = [[integrand(x, j) for x in u] for j in range(b.shape[0])]
     return [scipy.integrate.simpson(curve, u) for curve in curves]
-
-
-if __name__ == "__main__":
-    # file1 = "../Sarah_imgs/thread_3_left_final.jpg"#sys.argv[1]
-    # file2 = "../Sarah_imgs/thread_3_right_final.jpg"#sys.argv[2]
-    # img1 = cv2.imread(file1)
-    # img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
-    # img2 = cv2.imread(file2)
-    # img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
-    # calib = "/Users/neelay/ARClabXtra/Sarah_imgs/camera_calibration_fei.yaml"
-    # img_3D, keypoints, grow_paths, order = keypt_selection(img1, img2)
-    fileb = "../Blender_imgs/blend5/blend5_1.png"
-    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
-    imgb = cv2.imread(fileb)
-    imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
-    img1 = imgb[:, :640]
-    img2 = imgb[:, 640:]
-    img1 = np.where(img1>=205, 255, img1)
-    img2 = np.where(img2>=205, 255, img2)
-    plt.figure(1)
-    plt.imshow(img1, cmap="gray")
-    plt.figure(2)
-    plt.imshow(img2, cmap="gray")
-    plt.show()
-    assert False
-    # test()
-    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, calib)
-    img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-
-    curve_fit(img1, img_3D, keypoints, grow_paths, order)
