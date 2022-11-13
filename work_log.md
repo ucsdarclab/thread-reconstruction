@@ -1,8 +1,22 @@
-# Thread Reconstruction Work Log
+# Thread Segmentation Work Log
 ## Useful resources
-- "Real-Time Visual Tracking of Dynamic Surgical Suture Threads": https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8008771
-- "Toward Image-Guided Automated Suture Grasping Under Complex Environments: A Learning-Enabled and Optimization-Based Holistic Framework": https://ieeexplore.ieee.org/document/9664632
-- "Event-based Vision: A Survey": https://rpg.ifi.uzh.ch/docs/EventVisionSurvey.pdf
+- [Real-Time Visual Tracking of Dynamic Surgical Suture Threads](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=8008771)
+- [Toward Image-Guided Automated Suture Grasping Under Complex Environments: A Learning-Enabled and Optimization-Based Holistic Framework](https://ieeexplore.ieee.org/document/9664632)
+- [Event-based Vision: A Survey](https://rpg.ifi.uzh.ch/docs/EventVisionSurvey.pdf)
+
+# Week of 11/14
+The focus of this week is to perform a literature review, gathering ideas to make our planned method less ambiguous. In addition, I will pick up where I left off for manual segmentation
+
+- Evaluation of [Particle Filters in Latent Space for Robust Deformable Linear Object Tracking](https://ieeexplore.ieee.org/stamp/stamp.jsp?arnumber=9928322)
+  - Pros
+    - _Latent Space_: The use of a latent space to represent thread state sounds very appealing. Using an autoencoder also sounds interesting
+    - _Particle Filter_: The particle filter framework is very applicable to our current problem (provides a great way to merge a motion model with an observation)
+    - Doesn't require a predefined initial state
+  - Cons
+    - _Observations_: The paper assumes that any DLOs and obstacles in the images are already segmented, so checking the probability of an observation (both occluded and unoccluded) is much easier than in our case
+  - Questions
+    - Is an autoencoder the best model for us to use when making a latent space?
+    - How should tool motion be included within this framework?
 
 # Week of 10/24
 The focus of this week is to build a manually labeled thread image dataset and further develop my proposed segmentation method. The 2 priors I plan on leveraging are surgical tool motion and the static nature of the surgical background
