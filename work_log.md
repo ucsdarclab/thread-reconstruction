@@ -12,11 +12,17 @@ The focus of this week is to perform a literature review, gathering ideas to mak
     - _Latent Space_: The use of a latent space to represent thread state sounds very appealing. Using an autoencoder also sounds interesting
     - _Particle Filter_: The particle filter framework is very applicable to our current problem (provides a great way to merge a motion model with an observation)
     - Doesn't require a predefined initial state
+    - Occlusion resistant
   - Cons
     - _Observations_: The paper assumes that any DLOs and obstacles in the images are already segmented, so checking the probability of an observation (both occluded and unoccluded) is much easier than in our case
   - Questions
     - Is an autoencoder the best model for us to use when making a latent space?
     - How should tool motion be included within this framework?
+- Evaluation of [Keypoint-Based Bimanual Shaping of Deformable Linear Objects under Environmental Constraints using Hierarchical Action Planning](https://arxiv.org/pdf/2110.08962.pdf)
+  - Pros
+    - _Keypoints_: This results in a latent space that is easier to understand than that created by an autoencoder
+  - Cons
+    - Intuitively, this method seems like it would need to change a lot in order to tackle the suture thread segmentation problem
 
 # Week of 10/24
 The focus of this week is to build a manually labeled thread image dataset and further develop my proposed segmentation method. The 2 priors I plan on leveraging are surgical tool motion and the static nature of the surgical background
