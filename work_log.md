@@ -23,6 +23,11 @@ The focus of this week is to perform a literature review, gathering ideas to mak
     - _Keypoints_: This results in a latent space that is easier to understand than that created by an autoencoder
   - Cons
     - Intuitively, this method seems like it would need to change a lot in order to tackle the suture thread segmentation problem
+- Evaluation of [Real-Time Constrained 6D Object-Pose Tracking of An In-Hand Suture Needle for Minimally Invasive Robotic Surgery (Sarah and Florian's paper)](https://arxiv.org/pdf/2210.11973.pdf)
+  - Pros:
+    - _Reparameterization_: This is similar to the previously defined latent spaces. The reason for this reparameterization is to make the definition of a needle pose more intuitive and ensure feasibility
+  - Cons:
+    - 
 
 # Week of 10/24
 The focus of this week is to build a manually labeled thread image dataset and further develop my proposed segmentation method. The 2 priors I plan on leveraging are surgical tool motion and the static nature of the surgical background
