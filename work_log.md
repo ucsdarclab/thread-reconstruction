@@ -33,6 +33,7 @@ The focus of this week is to perform a literature review, gathering ideas to mak
   - Questions
     - Should suture thread state be reparameterized to be relative to tool pose?
 - Evaluation of [Differentiable Robotic Manipulation of Deformable Rope-like Objects Using Compliant Position-based Dynamics (Fei's paper)](https://arxiv.org/abs/2202.09714)
+- **Plan of action:** Fei suggested getting started on implementation. For now, the simplest thing we can do is implement some sort of PBD-based motion model that uses tool movement and testing how well it can predict a future segmentation. I began implementing this today.
 
 # Week of 10/24
 The focus of this week is to build a manually labeled thread image dataset and further develop my proposed segmentation method. The 2 priors I plan on leveraging are surgical tool motion and the static nature of the surgical background
