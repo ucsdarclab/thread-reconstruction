@@ -5,18 +5,29 @@ import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
 import cv2
+import os
 
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
 from curve_fit import curve_fit
 
-"""
-TODO: MOVE TEST FILES AND UPDATE CODE ACCORDINGLY
-"""
-
+# Set to "True" if evaluating on simulated dataset
+#   "False" for real dataset
 SIMULATION = True
+# Set to "True" to store results in csv file without visualization
+#   "False" to visualize results without storing in csv file
 STORE = False
 
+DATA = os.path.dirname(
+        os.path.abspath(__file__)
+    ) + "/../data/"
+SIMDATA = DATA + "simulated/"
+REALDATA = DATA + "real/"
+
+# Evaluate the fit of our reconstruction
+# img1 and img2 are the stereo images
+# calib is the camera calibration file
+# gt_tck is the ground truth spline (only provided for simulated curves)
 def fit_eval(img1, img2, calib, gt_tck=None):
     # Read in camera matrix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
@@ -29,6 +40,7 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     ImageSize = cv_file.getNode("ImageSize").mat()
     img_size = (int(ImageSize[0][1]), int(ImageSize[0][0]))
 
+    # Stereorectify the images
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
         flags=cv2.CALIB_ZERO_DISPARITY)
 
@@ -46,52 +58,59 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     if SIMULATION:
         gt_spline = gt_tck(np.linspace(0, 1, 150))
 
+        # Length error
         ours_len, gt_len, diff = length_error(final_tck, gt_tck)
         print("Lengths: ours %f, gt %f, diff %f" % (ours_len, gt_len, diff))
 
         num_eval_pts = int(gt_len*10)
         errors1, spots1, e_mean1, e_max1 = curve_error(final_tck, gt_tck, num_eval_pts)
         errors2, spots2, e_mean2, e_max2 = curve_error(gt_tck, final_tck, num_eval_pts)
+        # Mean and max curve error
         e_mean = (e_mean1 + e_mean2)/2
         e_max = max(e_max1, e_max2)
         print("Curve error: mean %f, max %f" % (e_mean, e_max))
     else:
         num_eval_pts = 200
+        # Reprojection error
         left, left_max = reprojection_error(final_tck, img1, P1, num_eval_pts)
         right, right_max = reprojection_error(final_tck, img2, P2, num_eval_pts)
         print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
             % (left, left_max, right, right_max))
 
-    # Visualize the result
-    plt.figure(1)
-    ax1 = plt.axes(projection='3d')
-    ax1.tick_params(labelsize=8)
-    ax1.set_xlabel("$x$")
-    ax1.set_ylabel("$y$")
-    ax1.set_zlabel("$z$")
-    ax1.plot(
-        final_spline[:, 0],
-        final_spline[:, 1],
-        final_spline[:, 2],
-        c="r",
-        label="Our Result"
-    )
-    if gt_tck is not None:
-        ax1.plot(
-            gt_spline[:, 0],
-            gt_spline[:, 1],
-            gt_spline[:, 2],
-            label="Ground Truth",
-            c="g")
-        ax1.legend()
-    set_axes_equal(ax1)
     if not STORE:
+        # Visualize the result
+        plt.figure(1)
+        ax1 = plt.axes(projection='3d')
+        ax1.tick_params(labelsize=8)
+        ax1.set_xlabel("$x$")
+        ax1.set_ylabel("$y$")
+        ax1.set_zlabel("$z$")
+        ax1.plot(
+            final_spline[:, 0],
+            final_spline[:, 1],
+            final_spline[:, 2],
+            c="r",
+            label="Our Result"
+        )
+        # Also show ground truth if available
+        if gt_tck is not None:
+            ax1.plot(
+                gt_spline[:, 0],
+                gt_spline[:, 1],
+                gt_spline[:, 2],
+                label="Ground Truth",
+                c="g")
+            ax1.legend()
+        set_axes_equal(ax1)
         plt.show()
     if SIMULATION:
         return ours_len, gt_len, diff, e_mean, e_max
     else:
         return left, left_max, right, right_max
 
+# Compute length error
+# ours is computed reconstruction
+# gt is ground truth
 def length_error(ours, gt):
     ours_der = ours.derivative()
     gt_der = gt.derivative()
@@ -103,6 +122,10 @@ def length_error(ours, gt):
     gt_len = scipy.integrate.quad(integrand, gt.t[0], gt.t[-1], args=(gt_der))[0]
     return ours_len, gt_len, ours_len - gt_len
 
+# Compute curve error, averaged over curve
+# ours is computed reconstruction
+# gt is ground truth
+# num_eval_pts is number of points at which curve error is evaluated
 def curve_error(ours, gt, num_eval_pts):
     def objective(u, gt_pt):
         return np.linalg.norm(gt_pt - ours(u))
@@ -137,6 +160,11 @@ def curve_error(ours, gt, num_eval_pts):
         errors[i] = objective(best, gt_pt)
     return errors, spots, np.mean(errors), np.max(errors)
 
+# Compute reprojection error, averaged over curve
+# ours is computed reconstruction
+# img is image to project onto
+# P is projection matrix
+# num_eval_pts is number of points at which reprojection error is evaluated
 def reprojection_error(ours, img, P, num_eval_pts):
     segpix = np.argwhere(img<=250)
     u = np.linspace(ours.t[0], ours.t[-1], num_eval_pts)
@@ -144,9 +172,7 @@ def reprojection_error(ours, img, P, num_eval_pts):
     aug_pts = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=1)
     proj_pts = (P @ aug_pts.T).T
     proj_pts /= proj_pts[:, 2:].copy() + 1e-7
-    # plt.imshow(img, cmap="gray")
-    # plt.scatter(proj_pts[:, 0], proj_pts[:, 1], c="r")
-    # plt.show()
+    
     pixs = proj_pts[:, :2]
     pixs[:, 0], pixs[:, 1] = pixs[:, 1].copy(), pixs[:, 0].copy()
     errors = np.zeros(pts.shape[0])
@@ -156,7 +182,7 @@ def reprojection_error(ours, img, P, num_eval_pts):
         errors[i] = np.min(diffs)
     return np.mean(errors), np.max(errors)
 
-
+# Convert from image-depth (u, v, d) frame to camera frame (x, y, z)
 def change_coords(pts, K1):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
     depths = pts[:, 2:].copy()
@@ -165,6 +191,7 @@ def change_coords(pts, K1):
     return pts_c
 
 """
+Helper function for preventing distortion when displaying reconstruction
 Source code here: https://stackoverflow.com/questions/13685386/matplotlib-equal-unit-length-with-equal-aspect-ratio-z-axis-is-not-equal-to
 """
 def set_axes_equal(ax):
@@ -206,11 +233,12 @@ if __name__ == "__main__":
             for file_num in range(1,5):
                 # Choose correct calibration matrix
                 if folder_num < 5:
-                    fileb = "../Blender_imgs/blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
-                    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml"
+                    fileb = SIMDATA + "blend%d/blend%d_%d.jpg" % (folder_num, folder_num, file_num)
+                    calib = SIMDATA + "blend_calibration.yaml"
                 else:
-                    fileb = "../Blender_imgs/blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
-                    calib = "/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration_new.yaml"
+                    fileb = SIMDATA + "blend%d/blend%d_%d.png" % (folder_num, folder_num, file_num)
+                    calib = SIMDATA + "blend_calibration_new.yaml"
+                
                 # Extract and color segment left and right images
                 imgb = cv2.imread(fileb)
                 imgb = cv2.cvtColor(imgb, cv2.COLOR_BGR2GRAY)
@@ -219,8 +247,7 @@ if __name__ == "__main__":
                 img1 = np.where(img1>=200, 255, img1)
                 img2 = np.where(img2>=200, 255, img2)
 
-                gt_b = np.load("/Users/neelay/ARClabXtra/Blender_imgs/blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
-                cv_file = cv2.FileStorage("/Users/neelay/ARClabXtra/Blender_imgs/blend_calibration.yaml", cv2.FILE_STORAGE_READ)
+                gt_b = np.load(SIMDATA + "blend%d/blend%d_%d.npy" % (folder_num, folder_num, file_num))
                 gk = 3
                 gt_knots = np.concatenate(
                     (np.repeat(0, gk),
@@ -228,17 +255,17 @@ if __name__ == "__main__":
                     np.repeat(1, gk))
                 )
                 gt_tck = interp.BSpline(gt_knots, gt_b, gk)
-                gt_spline = gt_tck(np.linspace(0, 1, 150))
 
-                try:
-                    out = list(fit_eval(img1, img2, calib, gt_tck))
-                    out = ["%d_%d" % (folder_num, file_num)] + out
-                    data.append(out)
-                except:
-                    footer.append("%d_%d" % (folder_num, file_num))
+                # Can use try catch to avoid errors while storing results
+                # try:
+                out = list(fit_eval(img1, img2, calib, gt_tck))
+                out = ["%d_%d" % (folder_num, file_num)] + out
+                data.append(out)
+                # except:
+                #     footer.append("%d_%d" % (folder_num, file_num))
         # Store results conveniently in csv file
         if STORE:
-            with open("results.csv", "w", newline="") as f:
+            with open(SIMDATA + "results.csv", "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(header)
                 writer.writerows(data)
@@ -251,14 +278,15 @@ if __name__ == "__main__":
         header = ["file", "left mean err", "left max error", "right mean err", "right max err"]
         footer = ["Failed"]
         for folder_num, file_num in files:
-            file1 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
-            file2 = "../Suture_Thread_06_16/thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
-            calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
+            file1 = REALDATA + "thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
+            file2 = REALDATA + "thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
+            calib = REALDATA + "camera_calibration_sarah.yaml"
             img1 = cv2.imread(file1)
             img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
             img2 = cv2.imread(file2)
             img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY)
 
+            # Can use try catch to avoid errors while storing results
             # try:
             out = list(fit_eval(img1, img2, calib))
             out = ["%d_%d" % (folder_num, file_num)] + out
@@ -266,7 +294,7 @@ if __name__ == "__main__":
             # except:
             footer.append("%d_%d" % (folder_num, file_num))
         if STORE:
-            with open("results_real.csv", "w", newline="") as f:
+            with open(REALDATA + "results.csv", "w", newline="") as f:
                 writer = csv.writer(f)
                 writer.writerow(header)
                 writer.writerows(data)

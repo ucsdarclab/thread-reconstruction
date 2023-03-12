@@ -15,7 +15,6 @@ def keypt_selection(img1, img2, Q):
     img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
     
     reliab = np.zeros(segpix1.shape[0])
-    # TODO change with image size
     max_disp = 80
     rad = 2
     c_data = 5
@@ -45,7 +44,7 @@ def keypt_selection(img1, img2, Q):
         disp = np.argmin(energy)
         energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
         next_best = np.min(energy2)
-        disp2 = np.argmin(energy2)
+        # disp2 = np.argmin(energy2)
         
         x = (next_best - best)/((best + 1e-7)*c_data)
         reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
