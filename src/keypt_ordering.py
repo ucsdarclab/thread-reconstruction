@@ -1,3 +1,11 @@
+"""
+Order keypoints using cluster adjacency
+NOTE:   Although our paper only focuses on
+        non-intersecting and unoccluded threads
+        this code was designed with the hope to
+        account for these edge cases in the future.
+"""
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib import collections

@@ -1,3 +1,7 @@
+"""
+Select keypoints via reliability metrics and clustering
+"""
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib import collections

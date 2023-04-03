@@ -1,3 +1,7 @@
+"""
+Use MVS to fit spline to ordered keypoints
+"""
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
@@ -255,7 +259,7 @@ def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     curve = [integrand(x) for x in u]
     return scipy.integrate.simpson(curve, u)
 
-# Constraint functions and gradients
+"Constraint functions and gradients"
 def endpt_constr(args, knots, d, side, constr, der):
     b = np.array([val for val in args])
     tck = interp.BSpline(knots, b, d)
@@ -280,7 +284,7 @@ def upper_bound(args, knots, d, constr, x, grad):
 def upper_grad(args, knots, d, constr, x, grad):
     return [-1*der(x) for der in grad]
 
-# Spline gradients
+"Spline gradients"
 def dspline_grads(b, knots, d):
     n = b.shape[0]
     # Organize useful coefficients conveniently
@@ -315,7 +319,7 @@ def dspline_grads(b, knots, d):
         
     return grad0, grad1, grad2, grad3
 
-# MVS objective function gradient
+"MVS objective function gradient"
 def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
     b = np.array([val for val in args])
     spline = interp.BSpline(knots, b, d)

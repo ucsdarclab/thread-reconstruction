@@ -1,3 +1,7 @@
+"""
+Evaluate reconstruction accuracy against sim, real datasets
+"""
+
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
@@ -280,7 +284,7 @@ if __name__ == "__main__":
         for folder_num, file_num in files:
             file1 = REALDATA + "thread_%d_seg/thread%d_left_%d_final.png" % (folder_num, folder_num, file_num)
             file2 = REALDATA + "thread_%d_seg/thread%d_right_%d_final.png" % (folder_num, folder_num, file_num)
-            calib = REALDATA + "camera_calibration_sarah.yaml"
+            calib = REALDATA + "camera_calibration.yaml"
             img1 = cv2.imread(file1)
             img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY)
             img2 = cv2.imread(file2)
