@@ -7,11 +7,10 @@ import cv2
 import copy
 
 
-def keypt_selection(img1, img2, Q):
+def keypt_selection(img1, img2, mask1, mask2, Q):
     # Color segment images
-    pix_thresh = 250
-    segpix1 = np.argwhere(img1<=pix_thresh)
-    segpix2 = np.argwhere(img2<=pix_thresh)
+    segpix1 = np.argwhere(mask1>0)
+    segpix2 = np.argwhere(mask2>0)
     img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
     
     reliab = np.zeros(segpix1.shape[0])
@@ -29,14 +28,14 @@ def keypt_selection(img1, img2, Q):
         pix = segpix1[i]
         curr_max_disp = min(pix[1], max_disp)
         chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
-        seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
+        seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
         energy = np.zeros(curr_max_disp)
         for off in range(curr_max_disp):
             g_l = img1[seg[:,0], seg[:,1]]
             g_r = img2[seg[:,0], seg[:,1] - off]
             # Compare blocks, heavily penalizing fully unsegmented right-image blocks
-            if (np.abs(g_r - 255) < 1).all():
+            if (g_r < 1).all():
                 energy[off] = 255**2 * g_r.shape[0]
             else:
                 energy[off] = np.sum((g_l - g_r)**2)
@@ -64,7 +63,7 @@ def keypt_selection(img1, img2, Q):
     #Find Clusters
     clusters = []
     vlist = [pt for pt in relpts.copy()]
-    vmap = np.ones_like(img1)
+    vmap = np.ones_like(mask1)
     vmap[relpts[:, 0], relpts[:, 1]] = 0
     escape = False
     # Neighbors are all pixels of manhattan distance at most 2
@@ -111,7 +110,7 @@ def keypt_selection(img1, img2, Q):
 
     # Extract keypoints, create cluster map
     cluster_means = np.zeros((len(clusters), 3))
-    cluster_map = np.zeros_like(img1)
+    cluster_map = np.zeros_like(mask1)
     for i, cluster in enumerate(clusters):
         cluster = np.array(cluster)
         cluster_means[i, :2] = np.mean(cluster, axis=0)
@@ -149,7 +148,7 @@ def keypt_selection(img1, img2, Q):
                 t_neigh = tuple(neigh)
                 neigh_clust = solid_map[t_neigh]
                 # if neighbor is segmented, unvisited, and outside cluster
-                if img1[neigh[0], neigh[1]] <= pix_thresh and \
+                if mask1[neigh[0], neigh[1]] > 0 and \
                     t_neigh not in grow_paths[c_id] and \
                     neigh_clust != c_id+1:
                     # note down when adjacent keypoints are found

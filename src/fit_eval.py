@@ -35,31 +35,30 @@ def fit_eval(img1, img2, calib, gt_tck=None):
         flags=cv2.CALIB_ZERO_DISPARITY)
 
     mask1 = segmentation(img1)
-    mask1 = np.stack((mask1, mask1, mask1), axis=-1)
     mask2 = segmentation(img2)
-    mask2 = np.stack((mask2, mask2, mask2), axis=-1)
-
-    plt.figure(1)
-    plt.imshow(mask1.astype("float"))
-    plt.figure(2)
-    plt.imshow(mask2.astype("float"))
-    plt.show()
-    plt.clf()
-    plt.figure(1)
-    plt.clf()
-
-    # TODO switch background color 
-    img1 = np.where(mask1>0, img1, 255)
-    img2 = np.where(mask2>0, img2, 255)
     
-    # TODO stop converting to grayscale
-    img1 = np.float32(cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY))
-    img2 = np.float32(cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY))
+
+    # plt.figure(1)
+    # plt.imshow(mask1.astype("float"))
+    # plt.figure(2)
+    # plt.imshow(mask2.astype("float"))
+    # plt.show()
+    # plt.clf()
+    # plt.figure(1)
+    # plt.clf()
+
+    stack_mask1 = np.stack((mask1, mask1, mask1), axis=-1)
+    img1 = np.where(stack_mask1>0, img1, 0)
+    stack_mask2 = np.stack((mask2, mask2, mask2), axis=-1)
+    img2 = np.where(stack_mask2>0, img2, 0)
+    
+    img1 = np.float32(img1)
+    img2 = np.float32(img2)
     
     # Perform reconstruction
-    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, Q)
+    img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-    final_tck = curve_fit(img1, img_3D, keypoints, grow_paths, order)
+    final_tck = curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order)
     final_tck.c = change_coords(final_tck.c, P1[:, :3])
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
 
@@ -78,8 +77,8 @@ def fit_eval(img1, img2, calib, gt_tck=None):
         print("Curve error: mean %f, max %f" % (e_mean, e_max))
     else:
         num_eval_pts = 200
-        left, left_max = reprojection_error(final_tck, img1, P1, num_eval_pts)
-        right, right_max = reprojection_error(final_tck, img2, P2, num_eval_pts)
+        left, left_max = reprojection_error(final_tck, mask1, P1, num_eval_pts)
+        right, right_max = reprojection_error(final_tck, mask2, P2, num_eval_pts)
         print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
             % (left, left_max, right, right_max))
 
@@ -158,8 +157,8 @@ def curve_error(ours, gt, num_eval_pts):
         errors[i] = objective(best, gt_pt)
     return errors, spots, np.mean(errors), np.max(errors)
 
-def reprojection_error(ours, img, P, num_eval_pts):
-    segpix = np.argwhere(img<=250)
+def reprojection_error(ours, mask, P, num_eval_pts):
+    segpix = np.argwhere(mask>0)
     u = np.linspace(ours.t[0], ours.t[-1], num_eval_pts)
     pts = ours(u)
     aug_pts = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=1)

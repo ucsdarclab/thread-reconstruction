@@ -7,10 +7,10 @@ import scipy.interpolate as interp
 import scipy.stats
 import cv2
 
-def curve_fit(img1, img_3D, keypoints, grow_paths, order):
+def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
-    segpix1 = np.argwhere(img1<250)
+    segpix1 = np.argwhere(mask1>0)
     size_thresh = segpix1.shape[0] // 100
     ang_thresh = np.pi/5
     interval_floor = size_thresh // 2
