@@ -5,7 +5,9 @@ import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
 import cv2
+import os
 
+from segmentation import segmentation
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
 from curve_fit import curve_fit
@@ -14,7 +16,7 @@ from curve_fit import curve_fit
 TODO: MOVE TEST FILES AND UPDATE CODE ACCORDINGLY
 """
 
-SIMULATION = True
+SIMULATION = False
 STORE = False
 
 def fit_eval(img1, img2, calib, gt_tck=None):
@@ -32,8 +34,27 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
         flags=cv2.CALIB_ZERO_DISPARITY)
 
-    img1 = np.float32(img1)
-    img2 = np.float32(img2)
+    mask1 = segmentation(img1)
+    mask1 = np.stack((mask1, mask1, mask1), axis=-1)
+    mask2 = segmentation(img2)
+    mask2 = np.stack((mask2, mask2, mask2), axis=-1)
+
+    plt.figure(1)
+    plt.imshow(mask1.astype("float"))
+    plt.figure(2)
+    plt.imshow(mask2.astype("float"))
+    plt.show()
+    plt.clf()
+    plt.figure(1)
+    plt.clf()
+
+    # TODO switch background color 
+    img1 = np.where(mask1>0, img1, 255)
+    img2 = np.where(mask2>0, img2, 255)
+    
+    # TODO stop converting to grayscale
+    img1 = np.float32(cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY))
+    img2 = np.float32(cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY))
     
     # Perform reconstruction
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, Q)
@@ -196,6 +217,20 @@ def set_axes_equal(ax):
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
 
 if __name__ == "__main__":
+    inp_folder = os.path.dirname(__file__) + "/../../thread_segmentation/thread_2/"
+    prefixes = ["left_recif_", "right_recif_"]
+    start = 159
+    ext = ".jpg"
+    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
+    for i in range(1):
+        imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
+        img1 = cv2.imread(imfile1)
+        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
+        imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
+        img2 = cv2.imread(imfile2)
+        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
+        fit_eval(img1, img2, calib)
+    """
     # Run reconstruction on datasets
     # Simulated Dataset
     if SIMULATION:
@@ -271,3 +306,4 @@ if __name__ == "__main__":
                 writer.writerow(header)
                 writer.writerows(data)
                 writer.writerow(footer)
+    """
