@@ -7,7 +7,10 @@ import scipy.interpolate as interp
 import scipy.stats
 import cv2
 
-def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order):
+from reparam import reparam
+from utils import *
+
+def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
     segpix1 = np.argwhere(mask1>0)
@@ -174,9 +177,11 @@ def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order):
     # Fit spline to initial points
     tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
     t = tck[0]
-    c = np.array(tck[1]).T
+    c = change_coords(np.array(tck[1]).T, K1)
     k = tck[2]
     tck = interp.BSpline(t, c, k)
+    reparam(tck)
+    return
     init_spline = tck(np.linspace(0, u[-1], 150))
 
     b = c[:, 2]
