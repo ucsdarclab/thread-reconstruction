@@ -18,10 +18,12 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
     init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
     spline, init_u, low_constr, high_constr = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
     keypt_u = init_u[keypoint_idxs]
-    knots, keypt_s = reparam(spline, keypt_u)
+    new_spline, knots, keypt_s = reparam(spline, keypt_u)
     k = 3
     num_ctrl = len(knots)-k-1
     num_constr = len(keypt_s)*3
+
+    init_guess = new_spline.c.flatten()
 
     constr_centers = keypoints[order]
     constr_lower_px = constr_centers[:, 1] - CONSTR_WIDTH_2D
@@ -68,7 +70,7 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
         deriv_coeff
     )
 
-    solver.setObjective(decision @ loss_coeff @ decision)
+    solver.setObjective((decision + init_guess) @ loss_coeff @ (decision + init_guess))
 
     # Create constraints
     spl_bases = np.zeros((num_constr, num_ctrl*3))
@@ -89,40 +91,44 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
     eval_select_x = I_constr[::3] @ spl_eval_matrix
     eval_select_y = I_constr[1::3] @ spl_eval_matrix
     eval_select_z = I_constr[2::3] @ spl_eval_matrix
-
-    
     
     # x lower bound
+    x_lower = constr_lower_px_rshp * eval_select_z - eval_select_x
     solver.addMConstr(
         #np.repeat(constr_lower_px, num_ctrl*3).reshape(num_constr//3, num_ctrl*3)
-        constr_lower_px_rshp * eval_select_z - eval_select_x,
-        decision, "<", np.zeros((num_constr//3,))
+        x_lower,
+        decision, "<", -1 * x_lower @ init_guess#np.zeros((num_constr//3,))
     )
     # x upper bound
+    x_upper = eval_select_x - constr_upper_px_rshp * eval_select_z
     solver.addMConstr(
-        eval_select_x - constr_upper_px_rshp * eval_select_z,
-        decision, "<", np.zeros((num_constr//3,))
+        x_upper,
+        decision, "<", -1 * x_upper @ init_guess#np.zeros((num_constr//3,))
     )
     # y lower bound
+    y_lower = constr_lower_py_rshp * eval_select_z - eval_select_y
     solver.addMConstr(
-        constr_lower_py_rshp * eval_select_z - eval_select_y,
-        decision, "<", np.zeros((num_constr//3,))
+        y_lower,
+        decision, "<", -1 * y_lower @ init_guess#np.zeros((num_constr//3,))
     )
     # y upper bound
+    y_upper = eval_select_y - constr_upper_py_rshp * eval_select_z
     solver.addMConstr(
-        eval_select_y - constr_upper_py_rshp * eval_select_z,
-        decision, "<", np.zeros((num_constr//3,))
+        y_upper,
+        decision, "<", -1 * y_upper @ init_guess#np.zeros((num_constr//3,))
     )
     # z lower bound
-    solver.addMConstr(eval_select_z, decision, ">", constr_lower_d)
+    z_lower = eval_select_z
+    solver.addMConstr(z_lower, decision, ">", -1 * z_lower @ init_guess + constr_lower_d)
     # z upper bound
-    solver.addMConstr(eval_select_z, decision, "<", constr_upper_d)
+    z_upper = eval_select_z
+    solver.addMConstr(eval_select_z, decision, "<", -1 * z_upper @ init_guess + constr_upper_d)
 
     #solver.params.dualreductions = 0
     # solver.feasRelaxS(1, False, False, True)
     solver.optimize()
 
-    new_ctrl = decision.X.reshape(num_ctrl, 3)
+    new_ctrl = (decision.X + init_guess).reshape(num_ctrl, 3)
     new_spline = interp.BSpline(knots, new_ctrl, k)
 
     old_samples = spline(np.linspace(0, keypt_u[-1], 150))

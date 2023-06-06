@@ -21,7 +21,7 @@ def arclength(dspline, a, b):
 
 def reparam(spline, keypt_u):
     INNER_MULT = 1 # multiplier on number control points
-    OUTER_MULT = 1 # multiplier to increase number of sampled points
+    OUTER_MULT = 2 # multiplier to increase number of sampled points
     
     # Integrate curve speed to get segment lengths
     # And lengths between keypoints
@@ -44,22 +44,22 @@ def reparam(spline, keypt_u):
     # Find m equally spaced points
     m = (ctrl.shape[0] - k + 1)*INNER_MULT*OUTER_MULT
     spacing = sum(segment_l)/(m-1)
-    # t_spaced = [knots[0]]
-    # l_traversed = 0
-    # j = 0
-    # for i in range(1, m-1):
-    #     l_diff = i*spacing - l_traversed
-    #     while j < len(segment_l) and l_diff > segment_l[j]:
-    #         l_traversed += segment_l[j]
-    #         j += 1
-    #         l_diff = i*spacing - l_traversed
+    t_spaced = [knots[0]]
+    l_traversed = 0
+    j = 0
+    for i in range(1, m-1):
+        l_diff = i*spacing - l_traversed
+        while j < len(segment_l) and l_diff > segment_l[j]:
+            l_traversed += segment_l[j]
+            j += 1
+            l_diff = i*spacing - l_traversed
         
-    #     def rootfinder(x):
-    #         return l_diff - arclength(dspline, knots[j], x)
+        def rootfinder(x):
+            return l_diff - arclength(dspline, knots[j], x)
         
-    #     t_bisect = scipy.optimize.bisect(rootfinder, knots[j], knots[j+1])
-    #     t_spaced.append(t_bisect)
-    # t_spaced.append(knots[-1])
+        t_bisect = scipy.optimize.bisect(rootfinder, knots[j], knots[j+1])
+        t_spaced.append(t_bisect)
+    t_spaced.append(knots[-1])
 
     # New spline parameters
     s_spaced = [i*spacing for i in range(m)]
@@ -67,23 +67,23 @@ def reparam(spline, keypt_u):
                 s_spaced[1:-1:OUTER_MULT] + \
                 [s_spaced[-1] for _ in range(k+1)])
 
-    # # Fit spline to previously collected points
-    # init_pts = spline(t_spaced)
-    # init_s = np.array(s_spaced)
+    # Fit spline to previously collected points
+    init_pts = spline(t_spaced)
+    init_s = np.array(s_spaced)
 
-    # # Construct spline
-    # tck, *_ = interp.splprep(
-    #     init_pts.T,
-    #     u=init_s,
-    #     task=-1,
-    #     t=new_knots,
-    #     k=k,
-    #     nest=init_s.shape[0]+k+1
-    # )
-    # t = tck[0]
-    # c = np.array(tck[1]).T
-    # k = tck[2]
-    # new_spline = interp.BSpline(t, c, k)
+    # Construct spline
+    tck, *_ = interp.splprep(
+        init_pts.T,
+        u=init_s,
+        task=-1,
+        t=new_knots,
+        k=k,
+        nest=init_s.shape[0]+k+1
+    )
+    t = tck[0]
+    c = np.array(tck[1]).T
+    k = tck[2]
+    new_spline = interp.BSpline(t, c, k)
 
     # old_samples = spline(np.linspace(0, knots[-1], 150))
     # new_samples = new_spline(np.linspace(0, init_s[-1], 150))
@@ -100,7 +100,7 @@ def reparam(spline, keypt_u):
     # validate_reparam(new_spline)
 
 
-    return new_knots, keypt_s
+    return new_spline, new_knots, keypt_s
 
 def validate_reparam(spline):
     # Integrate curve speed to get segment lengths
