@@ -8,7 +8,7 @@ import copy
 
 
 def keypt_selection(img1, img2, mask1, mask2, Q):
-    # Color segment images
+    # Get segmented pixels
     segpix1 = np.argwhere(mask1>0)
     segpix2 = np.argwhere(mask2>0)
     img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
@@ -50,6 +50,7 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
         reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
 
         depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+    
     # Reproject to 3D
     depth_calc = np.matmul(Q, depth_calc.copy())
     depth_calc /= depth_calc[3].copy() + 1e-7

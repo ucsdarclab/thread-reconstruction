@@ -10,12 +10,8 @@ import os
 from segmentation import segmentation
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
-from curve_fit import curve_fit
+from optim import optim
 from utils import *
-
-"""
-TODO: MOVE TEST FILES AND UPDATE CODE ACCORDINGLY
-"""
 
 SIMULATION = False
 STORE = False
@@ -31,10 +27,26 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     T = cv_file.getNode("T").mat()
     ImageSize = cv_file.getNode("ImageSize").mat()
     img_size = (int(ImageSize[0][1]), int(ImageSize[0][0]))
+    new_size = (640, 480)
 
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
-        flags=cv2.CALIB_ZERO_DISPARITY)
+        flags=cv2.CALIB_ZERO_DISPARITY, newImageSize=new_size)
+    cam2img = P1[:,:-1] @ R1
+    # map1x, map1y = cv2.initUndistortRectifyMap(K1, D1, R1, P1, new_size, cv2.CV_16SC2)
+    # map2x, map2y = cv2.initUndistortRectifyMap(K2, D2, R2, P2, new_size, cv2.CV_16SC2)
 
+    # inv_map1x = invert_map(map1x)
+    # inv_map2x = invert_map(map2x)
+    # inv_img1 = cv2.remap(img1, inv_map1x, None, cv2.INTER_LINEAR)
+    # inv_img2 = cv2.remap(img2, inv_map2x, None, cv2.INTER_LINEAR)
+
+    # plt.figure(1)
+    # plt.imshow(inv_img1)
+    # plt.figure(2)
+    # plt.imshow(inv_img2)
+    # plt.show()
+    # return
+    
     mask1 = segmentation(img1)
     mask2 = segmentation(img2)
     
@@ -59,7 +71,7 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     # Perform reconstruction
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-    final_tck = curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1)
+    final_tck = optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img)
     return
     final_tck.c = change_coords(final_tck.c, P1[:, :3])
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
@@ -183,9 +195,10 @@ def reprojection_error(ours, mask, P, num_eval_pts):
 if __name__ == "__main__":
     inp_folder = os.path.dirname(__file__) + "/../../thread_segmentation/thread_2/"
     prefixes = ["left_recif_", "right_recif_"]
-    start = 187
+    start = 38
     ext = ".jpg"
-    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
+    #calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
+    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration.yaml"
     for i in range(1):
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)

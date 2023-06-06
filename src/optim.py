@@ -4,16 +4,144 @@ import numpy as np
 import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
-import scipy.stats
 import cv2
+import gurobipy as gp
 
-from reparam import reparam
 from utils import *
+from reparam import reparam
 
-def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
+CONSTR_WIDTH_2D = 5
+
+def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
+    # Get necessary values
+    segpix1 = np.argwhere(mask1>0)
+    init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
+    spline, init_u, low_constr, high_constr = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
+    keypt_u = init_u[keypoint_idxs]
+    knots, keypt_s = reparam(spline, keypt_u)
+    k = 3
+    num_ctrl = len(knots)-k-1
+    num_constr = len(keypt_s)*3
+
+    constr_centers = keypoints[order]
+    constr_lower_px = constr_centers[:, 1] - CONSTR_WIDTH_2D
+    constr_upper_px = constr_centers[:, 1] + CONSTR_WIDTH_2D
+    constr_lower_py = constr_centers[:, 0] - CONSTR_WIDTH_2D
+    constr_upper_py = constr_centers[:, 0] + CONSTR_WIDTH_2D
+    constr_lower_d = low_constr(keypt_u)
+    constr_upper_d = high_constr(keypt_u)
+
+    # Put bounds in a good shape
+    # x constr
+    constr_lower_px_rshp = np.repeat(
+        constr_lower_px, num_ctrl*3
+    ).reshape(num_constr//3, num_ctrl*3)
+    constr_upper_px_rshp = np.repeat(
+        constr_upper_px, num_ctrl*3
+    ).reshape(num_constr//3, num_ctrl*3)
+
+    # y constr
+    constr_lower_py_rshp = np.repeat(
+        constr_lower_py, num_ctrl*3
+    ).reshape(num_constr//3, num_ctrl*3)
+    constr_upper_py_rshp = np.repeat(
+        constr_upper_py, num_ctrl*3
+    ).reshape(num_constr//3, num_ctrl*3)
+    # knots, num_ctrl, k = spline.t, len(spline.c), spline.k
+
+    # Set up optimization...
+    solver = gp.Model()
+    decision = solver.addMVar(num_ctrl*3)
+
+    # Create objective function
+    deriv_coeff = (
+        get_deriv_matrix(knots[2:-2], num_ctrl-2, k-2) @
+        get_deriv_matrix(knots[1:-1], num_ctrl-1, k-1) @
+        get_deriv_matrix(knots, num_ctrl, k)
+    )
+    weight_coeff = np.diag(
+        np.repeat(knots[4:-3] - knots[3:-4], 3)
+    )
+    loss_coeff = (
+        deriv_coeff.T @
+        weight_coeff @
+        deriv_coeff
+    )
+
+    solver.setObjective(decision @ loss_coeff @ decision)
+
+    # Create constraints
+    spl_bases = np.zeros((num_constr, num_ctrl*3))
+    I = np.eye(num_ctrl)
+    for i in range(num_ctrl):
+        basis = interp.BSpline(knots, I[i], k)
+        basis_eval = basis(keypt_s)
+        spl_bases[::3, 3*i] = basis_eval
+        spl_bases[1::3, 3*i+1] = basis_eval
+        spl_bases[2::3, 3*i+2] = basis_eval
+        
+    cam2img_rep = np.zeros((num_constr, num_constr))
+    for i in range(0, num_constr, 3):
+        cam2img_rep[i:i+3, i:i+3] = cam2img
+    spl_eval_matrix = cam2img_rep @ spl_bases
+    
+    I_constr = np.eye(num_constr)
+    eval_select_x = I_constr[::3] @ spl_eval_matrix
+    eval_select_y = I_constr[1::3] @ spl_eval_matrix
+    eval_select_z = I_constr[2::3] @ spl_eval_matrix
+
+    
+    
+    # x lower bound
+    solver.addMConstr(
+        #np.repeat(constr_lower_px, num_ctrl*3).reshape(num_constr//3, num_ctrl*3)
+        constr_lower_px_rshp * eval_select_z - eval_select_x,
+        decision, "<", np.zeros((num_constr//3,))
+    )
+    # x upper bound
+    solver.addMConstr(
+        eval_select_x - constr_upper_px_rshp * eval_select_z,
+        decision, "<", np.zeros((num_constr//3,))
+    )
+    # y lower bound
+    solver.addMConstr(
+        constr_lower_py_rshp * eval_select_z - eval_select_y,
+        decision, "<", np.zeros((num_constr//3,))
+    )
+    # y upper bound
+    solver.addMConstr(
+        eval_select_y - constr_upper_py_rshp * eval_select_z,
+        decision, "<", np.zeros((num_constr//3,))
+    )
+    # z lower bound
+    solver.addMConstr(eval_select_z, decision, ">", constr_lower_d)
+    # z upper bound
+    solver.addMConstr(eval_select_z, decision, "<", constr_upper_d)
+
+    #solver.params.dualreductions = 0
+    # solver.feasRelaxS(1, False, False, True)
+    solver.optimize()
+
+    new_ctrl = decision.X.reshape(num_ctrl, 3)
+    new_spline = interp.BSpline(knots, new_ctrl, k)
+
+    old_samples = spline(np.linspace(0, keypt_u[-1], 150))
+    new_samples = new_spline(np.linspace(0, knots[-1], 150))
+
+    # plt.imshow(img1, cmap="gray")
+    ax = plt.subplot(projection="3d")
+    # ax.plot(old_samples[:, 0], old_samples[:, 1], old_samples[:, 2])
+    ax.plot(new_samples[:, 0], new_samples[:, 1], new_samples[:, 2])
+    # ax.scatter(init_pts[:, 0], init_pts[:, 1], init_pts[:, 2],\
+    #         c=init_s, cmap="hot")
+    # plt.axis("equal")
+    set_axes_equal(ax)
+    plt.show()
+    
+
+def augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order):
     # Gather more points between keypoints to get better data for curve initialization
     init_pts = []
-    segpix1 = np.argwhere(mask1>0)
     size_thresh = segpix1.shape[0] // 100
     ang_thresh = np.pi/5
     interval_floor = size_thresh // 2
@@ -84,6 +212,9 @@ def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
     init_pts.append(keypoints[order[-1]])
     init_pts = np.array(init_pts)
 
+    return init_pts, keypoint_idxs
+
+def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
     # Construct bounds
     lower = np.zeros((len(order), 3))
     upper = np.zeros((len(order), 3))
@@ -121,11 +252,9 @@ def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
         lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
         upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
 
-    "Set up optimization"
     # initialize 3D spline
-    d = 3
+    k = 3
     num_ctrl = 20
-    print(num_ctrl)
 
     dists = np.linalg.norm(init_pts[1:, :2] - init_pts[:-1, :2], axis=1)
     dists /= np.sum(dists)
@@ -137,9 +266,9 @@ def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
     w = np.ones_like(u)
     w[keypoint_idxs] = key_weight
     knots = np.concatenate(
-        (np.repeat(0, d),
+        (np.repeat(0, k),
         np.linspace(0, u[-1], num_ctrl),
-        np.repeat(u[-1], d))
+        np.repeat(u[-1], k))
     )
 
     # Set depths to follow centerline between boundaries
@@ -174,186 +303,28 @@ def curve_fit(img1, mask1, img_3D, keypoints, grow_paths, order, K1):
     init_pts[0, 2] = endpts[0]
     init_pts[-1, 2] = endpts[-1]
 
+    # Bring points into camera coords
+    init_pts = change_coords(init_pts, cam2img)
+
     # Fit spline to initial points
-    tck, *_ = interp.splprep(init_pts.T, w=w, u=u, k=d, task=-1, t=knots)
+    tck, u, *_ = interp.splprep(init_pts.T, w=w, u=u, k=k, task=-1, t=knots)
     t = tck[0]
-    c = change_coords(np.array(tck[1]).T, K1)
+    c = np.array(tck[1]).T
     k = tck[2]
-    tck = interp.BSpline(t, c, k)
-    tck = reparam(tck)
-    return
-    init_spline = tck(np.linspace(0, u[-1], 150))
+    spline = interp.BSpline(t, c, k)
+    return spline, u, low_constr, high_constr
 
-    b = c[:, 2]
-    spline_db, dspline_db, d2spline_db, d3spline_db = dspline_grads(b, knots, d)
-
-    # Collect boundary and endpoint constraints
-    constraints = []
-    for p in u:
-        constraints.append(
-            {
-                "type":"ineq",
-                "fun":lower_bound,
-                "jac":lower_grad,
-                "args":(knots, d, low_constr, p, spline_db)
-            }
-        )
-        constraints.append(
-            {
-                "type":"ineq",
-                "fun":upper_bound,
-                "jac":upper_grad,
-                "args":(knots, d, high_constr, p, spline_db)
-            }
-        )
-    sides = [0, -1, 0, -1]
-    constrs = [endpts[0], endpts[1], slopes[0], slopes[-1]]
-    ders = [0, 0, 1, 1]
-    for side, constr, der in zip(sides, constrs, ders):
-        constraints.append(
-            {
-                "type":"eq",
-                "fun":endpt_constr,
-                "args": (knots, d, side, constr, der)
-            }
-        )
-    
-    
-    # Solve MVS optimization
-    final = scipy.optimize.minimize(
-        objective,
-        b,
-        method = 'SLSQP',
-        jac=gradient,
-        args=(knots, d, dspline_db, d2spline_db, d3spline_db),
-        constraints=constraints,
-        options= {"maxiter" : 200}
-    )
-    print("success:", final.success)
-    print("status:", final.status)
-    print("message:", final.message)
-    print("num iter:", final.nit)
-    b = np.array([val for val in final.x])
-    c[:, 2] = b
-    tck = interp.BSpline(t, c, k)
-    final_spline = tck(np.linspace(0, u[-1], 150))
-
-    return tck
-
-# MVS objective function
-def objective(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
-    b = np.array([val for val in args])
-    spline = interp.BSpline(knots, b, d)
-    dspline = spline.derivative()
-    d2spline = dspline.derivative()
-    d3spline = d2spline.derivative()
-
-    def integrand(x):
-        ds = dspline(x)
-        d2s = d2spline(x)
-        d3s = d3spline(x)
-        dKB = (d3s*(1+ds**2)**(3/2) - 3/2*(1+ds**2)**(1/2)*(2*ds)*d2s**2) \
-            / (1+ds**2)**3
-        return dKB**2 / (1+ds**2)**(1/2)
-    
-    u = np.linspace(knots[0], knots[-1], 100)
-    curve = [integrand(x) for x in u]
-    return scipy.integrate.simpson(curve, u)
-
-# Constraint functions and gradients
-def endpt_constr(args, knots, d, side, constr, der):
-    b = np.array([val for val in args])
-    tck = interp.BSpline(knots, b, d)
-    spline = interp.splev([knots[side]], tck, der)
-    return spline - constr
-
-def lower_bound(args, knots, d, constr, x, grad):
-    b = np.array([val for val in args])
-    tck = interp.BSpline(knots, b, d)
-    dist = tck(x) - constr(x)
-    return dist
-
-def lower_grad(args, knots, d, constr, x, grad):
-    return [der(x) for der in grad]
-
-def upper_bound(args, knots, d, constr, x, grad):
-    b = np.array([val for val in args])
-    tck = interp.BSpline(knots, b, d)
-    dist = constr(x) - tck(x)
-    return dist
-
-def upper_grad(args, knots, d, constr, x, grad):
-    return [-1*der(x) for der in grad]
-
-# Spline gradients
-def dspline_grads(b, knots, d):
-    n = b.shape[0]
-    # Organize useful coefficients conveniently
-    Q1 = np.ones((n-1, n))
-    for j in range(Q1.shape[1]):
-        Q1[:, j] = d / (knots[d+1:-1] - knots[1:-1*(d+1)])
-    Q2 = np.ones((n-2, n))
-    for j in range(Q2.shape[1]):
-        Q2[:, j] = (d-1) / (knots[d+1:-2] - knots[2:-1*(d+1)])
-    Q3 = np.ones((n-3, n))
-    for j in range(Q3.shape[1]):
-        Q3[:, j] = (d-2) / (knots[d+1:-3] - knots[3:-1*(d+1)])
-
-    J0 = np.eye(n)
-    J1 = Q1 * (J0[1:] - J0[:-1])
-    J2 = Q2 * (J1[1:] - J1[:-1])
-    J3 = Q3 * (J2[1:] - J2[:-1])
-
-    grad0 = []
-    grad1 = []
-    grad2 = []
-    grad3 = []
-    for j in range(n):
-        tck0 = interp.BSpline(knots, J0[:, j], d)
-        grad0.append(tck0)
-        tck1 = interp.BSpline(knots[1:-1], J1[:, j], d-1)
-        grad1.append(tck1)
-        tck2 = interp.BSpline(knots[2:-2], J2[:, j], d-2)
-        grad2.append(tck2)
-        tck3 = interp.BSpline(knots[3:-3], J3[:, j], d-3)
-        grad3.append(tck3)
+def get_deriv_matrix(knots, num_ctrl, k):
+    mat = np.zeros((3*(num_ctrl-1), 3*num_ctrl))
+    for i in range(num_ctrl-1):
+        coeff = k / (knots[i+k+1] - knots[i+1])
         
-    return grad0, grad1, grad2, grad3
+        mat[3*i, 3*i] = -coeff
+        mat[3*i+1, 3*i+1] = -coeff
+        mat[3*i+2, 3*i+2] = -coeff
 
-# MVS objective function gradient
-def gradient(args, knots, d, grad1_spl, grad2_spl, grad3_spl):
-    b = np.array([val for val in args])
-    spline = interp.BSpline(knots, b, d)
-    dspline = spline.derivative()
-    d2spline = dspline.derivative()
-    d3spline = d2spline.derivative()
-
-    def integrand(x, j):
-        ds = dspline(x)
-        d2s = d2spline(x)
-        d3s = d3spline(x)
-        Gs = grad1_spl[j](x)
-        G2s = grad2_spl[j](x)
-        G3s = grad3_spl[j](x)
-
-        dK = (d3s*(1+ds**2)**(3/2) - 3/2*(1+ds**2)**(1/2)*(2*ds)*d2s**2) \
-            / (1+ds**2)**3
-        dK_db = calc_dK_db(ds, d2s, d3s, Gs, G2s, G3s)
-
-        res = (2*dK*dK_db*(1 + ds**2)**(1/2) \
-            - (dK)**2 * (1/2)*(1+ds**2)**(-1/2) * 2*ds*Gs) \
-            / (1+ds**2)
-        return res
+        mat[3*i, 3*(i+1)] = coeff
+        mat[3*i+1, 3*(i+1)+1] = coeff
+        mat[3*i+2, 3*(i+1)+2] = coeff
     
-    def calc_dK_db(ds, d2s, d3s, Gs, G2s, G3s):
-        top = d3s*(1 + ds**2) - 3*ds*(d2s)**2
-        dtop_db = G3s*(1 + ds**2) + d3s*(2*ds)*Gs \
-            - 3*(Gs*d2s**2 + ds*(2*d2s)*G2s)
-        bottom = (1+ds**2)**(5/2)
-        dbottom_db = 5/2*(1 + ds**2)**(3/2) * (2*ds) * Gs
-        dK_db = (dtop_db*bottom - top*dbottom_db) / bottom**2
-        return dK_db
-    
-    u = np.linspace(knots[0], knots[-1], 100)
-    curves = [[integrand(x, j) for x in u] for j in range(b.shape[0])]
-    return [scipy.integrate.simpson(curve, u) for curve in curves]
+    return mat

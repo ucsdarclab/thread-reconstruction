@@ -1,12 +1,13 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
+import cv2
 
-def change_coords(pts, K1):
+def change_coords(pts, cam2img):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
     depths = pts[:, 2:].copy()
     pts[:, 2] = np.ones(pts.shape[0])
-    pts_c = depths * (np.linalg.inv(K1) @ pts.copy().T).T
+    pts_c = depths * (np.linalg.inv(cam2img) @ pts.copy().T).T
     return pts_c
 
 """
@@ -39,3 +40,17 @@ def set_axes_equal(ax):
     ax.set_xlim3d([x_middle - plot_radius, x_middle + plot_radius])
     ax.set_ylim3d([y_middle - plot_radius, y_middle + plot_radius])
     ax.set_zlim3d([z_middle - plot_radius, z_middle + plot_radius])
+
+"""
+Source code here: https://github.com/opencv/opencv/issues/22120
+"""
+def invert_map(F):
+    # shape is (h, w, 2), an "xymap"
+    (h, w) = F.shape[:2]
+    I = np.zeros_like(F)
+    I[:,:,1], I[:,:,0] = np.indices((h, w)) # identity map
+    P = np.copy(I)
+    for i in range(10):
+        correction = I - cv2.remap(F, P, None, interpolation=cv2.INTER_LINEAR)
+        P += correction // 2
+    return P
