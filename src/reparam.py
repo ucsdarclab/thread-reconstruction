@@ -42,7 +42,7 @@ def reparam(spline, keypt_u):
         l_traversed += li
     
     # Find m equally spaced points
-    m = (ctrl.shape[0] - k + 1)*INNER_MULT*OUTER_MULT
+    m = (ctrl.shape[0] - k)*INNER_MULT*OUTER_MULT
     spacing = sum(segment_l)/(m-1)
     t_spaced = [knots[0]]
     l_traversed = 0
