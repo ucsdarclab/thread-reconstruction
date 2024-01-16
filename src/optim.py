@@ -102,6 +102,7 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
         constr_u = np.zeros_like(constr_l)
         constr_u[-num_constr//3:] = constr_upper_d
         solver.setup(P=csc_matrix(loss_coeff), q=np.zeros(num_ctrl*3), A=csc_matrix(constr_A), l=constr_l, u=constr_u)
+        solver.warm_start(x=init_guess)
         result = solver.solve()
         return result.x
 
