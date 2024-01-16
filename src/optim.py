@@ -4,8 +4,9 @@ import numpy as np
 import scipy.optimize
 import scipy.integrate
 import scipy.interpolate as interp
+from scipy.sparse import csc_matrix
 import cv2
-import gurobipy as gp
+import osqp
 
 from utils import *
 from reparam import reparam
@@ -18,12 +19,9 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
     init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
     spline, init_u, low_constr, high_constr = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
     keypt_u = init_u[keypoint_idxs]
-    # new_spline, knots, keypt_s = reparam(spline, keypt_u)
     k = 3
     num_ctrl = len(spline.t)-k-1
     num_constr = len(keypt_u)*3
-
-    # init_guess = new_spline.c.flatten()
 
     constr_centers = keypoints[order]
     constr_lower_px = constr_centers[:, 1] - CONSTR_WIDTH_2D
@@ -54,9 +52,7 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
     
     def QP_step(init_guess, knots, keypt_s):
         # Set up optimization...
-        solver = gp.Model()
-        # solver.Params.dualreductions = 0
-        decision = solver.addMVar(num_ctrl*3)
+        solver = osqp.OSQP()
 
         # Create objective function
         deriv_coeff = (
@@ -72,8 +68,6 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
             weight_coeff @
             deriv_coeff
         )
-
-        solver.setObjective((decision + init_guess) @ loss_coeff @ (decision + init_guess))
 
         # Create constraints
         spl_bases = np.zeros((num_constr, num_ctrl*3))
@@ -95,49 +89,29 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
         eval_select_y = I_constr[1::3] @ spl_eval_matrix
         eval_select_z = I_constr[2::3] @ spl_eval_matrix
         
-        # x lower bound
         x_lower = constr_lower_px_rshp * eval_select_z - eval_select_x
-        solver.addMConstr(
-            #np.repeat(constr_lower_px, num_ctrl*3).reshape(num_constr//3, num_ctrl*3)
-            x_lower,
-            decision, "<", -1 * x_lower @ init_guess#np.zeros((num_constr//3,))
-        )
-        # x upper bound
         x_upper = eval_select_x - constr_upper_px_rshp * eval_select_z
-        solver.addMConstr(
-            x_upper,
-            decision, "<", -1 * x_upper @ init_guess#np.zeros((num_constr//3,))
-        )
-        # y lower bound
         y_lower = constr_lower_py_rshp * eval_select_z - eval_select_y
-        solver.addMConstr(
-            y_lower,
-            decision, "<", -1 * y_lower @ init_guess#np.zeros((num_constr//3,))
-        )
-        # y upper bound
         y_upper = eval_select_y - constr_upper_py_rshp * eval_select_z
-        solver.addMConstr(
-            y_upper,
-            decision, "<", -1 * y_upper @ init_guess#np.zeros((num_constr//3,))
-        )
-        # z lower bound
         z_lower = eval_select_z
-        solver.addMConstr(z_lower, decision, ">", -1 * z_lower @ init_guess + constr_lower_d)
-        # z upper bound
         z_upper = eval_select_z
-        solver.addMConstr(eval_select_z, decision, "<", -1 * z_upper @ init_guess + constr_upper_d)
 
-        #solver.params.dualreductions = 0
-        # solver.feasRelaxS(1, False, False, True)
-        solver.optimize()
-        return decision.X
+        constr_A = np.concatenate((x_lower, x_upper, y_lower, y_upper, z_lower), axis=0)
+        constr_l = np.ones(num_constr//3*5) * (-np.inf)
+        constr_l[-num_constr//3:] = constr_lower_d
+        constr_u = np.zeros_like(constr_l)
+        constr_u[-num_constr//3:] = constr_upper_d
+        solver.setup(P=csc_matrix(loss_coeff), q=np.zeros(num_ctrl*3), A=csc_matrix(constr_A), l=constr_l, u=constr_u)
+        solver.warm_start(x=init_guess)
+        result = solver.solve()
+        return result.x
 
-    for i in range(5):
+    for i in range(10):
         new_spline, knots, keypt_s = reparam(spline, keypt_u)
         init_guess = new_spline.c.flatten()
         
-        X = QP_step(init_guess, knots, keypt_s)
-        new_ctrl = (X + init_guess).reshape(num_ctrl, 3)
+        qp_out = QP_step(init_guess, knots, keypt_s)
+        new_ctrl = qp_out.reshape(num_ctrl, 3)
         new_spline = interp.BSpline(knots, new_ctrl, k)
 
         old_samples = spline(np.linspace(0, keypt_u[-1], 150))
