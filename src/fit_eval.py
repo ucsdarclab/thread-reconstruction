@@ -123,17 +123,21 @@ def fit_eval(img1, img2, calib, gt_tck=None):
 if __name__ == "__main__":
     inp_folder = os.path.dirname(__file__) + "/../../thread_segmentation/thread_2/"
     prefixes = ["left_recif_", "right_recif_"]
-    start = 38
+    start = 0
     ext = ".jpg"
     calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
-    for i in range(1):
+    for i in range(78, 279, 10):
+        print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)
         img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
         imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
         img2 = cv2.imread(imfile2)
         img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        fit_eval(img1, img2, calib)
+        try:
+            fit_eval(img1, img2, calib)
+        except Exception as e:
+            print("FAILED: " + str(e))
     """
     # Run reconstruction on datasets
     # Simulated Dataset

@@ -35,7 +35,7 @@ def reparam(spline, keypt_u):
     for a, b in zip(knots[:-1], knots[1:]):
         li = arclength(dspline, a, b)
         segment_l.append(li)
-        while(u_idx < len(keypt_u) and keypt_u[u_idx] <= b):
+        while(u_idx < len(keypt_u) and keypt_u[u_idx] <= b + 1e-3):
             keypt_si = l_traversed + arclength(dspline, a, keypt_u[u_idx])
             keypt_s.append(keypt_si)
             u_idx += 1

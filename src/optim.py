@@ -229,9 +229,9 @@ def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
         start = max(key_ord-fit_rad, 0)
         end = min(key_ord+fit_rad, len(order)-1)
         if start == 0:
-            end += fit_rad//2
+            end = min(end+fit_rad//2, len(order)-1)
         elif end == len(order)-1:
-            start -= fit_rad//2
+            start = max(start-fit_rad//2, 0)
         x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
         data = init_pts[x, 2]
         slope, intercept, *_ = scipy.stats.linregress(x, data)
@@ -289,9 +289,9 @@ def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
         start = max(key_ord-fit_rad, 0)
         end = min(key_ord+fit_rad, len(order)-1)
         if start == 0:
-            end += fit_rad//2
+            end = min(end+fit_rad//2, len(order)-1)
         elif end == len(order)-1:
-            start -= fit_rad//2
+            start = max(start-fit_rad//2, 0)
         x = np.arange(keypoint_idxs[start], keypoint_idxs[end]+1)
         data = init_pts[x, 2]
         slope, intercept, *_ = scipy.stats.linregress(x, data)
