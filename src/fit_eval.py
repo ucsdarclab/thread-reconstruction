@@ -1,8 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 import numpy as np
-import scipy.optimize
-import scipy.integrate
 import scipy.interpolate as interp
 import cv2
 import os
@@ -31,21 +29,13 @@ def fit_eval(img1, img2, calib, gt_tck=None):
 
     R1, R2, P1, P2, Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
         flags=cv2.CALIB_ZERO_DISPARITY, newImageSize=new_size)
-    cam2img = P1[:,:-1] @ R1
-    # map1x, map1y = cv2.initUndistortRectifyMap(K1, D1, R1, P1, new_size, cv2.CV_16SC2)
-    # map2x, map2y = cv2.initUndistortRectifyMap(K2, D2, R2, P2, new_size, cv2.CV_16SC2)
+    
+    cam2img = P1[:,:-1]
+    map1x, map1y = cv2.initUndistortRectifyMap(K1, D1, R1, P1, new_size, cv2.CV_16SC2)
+    map2x, map2y = cv2.initUndistortRectifyMap(K2, D2, R2, P2, new_size, cv2.CV_16SC2)
 
-    # inv_map1x = invert_map(map1x)
-    # inv_map2x = invert_map(map2x)
-    # inv_img1 = cv2.remap(img1, inv_map1x, None, cv2.INTER_LINEAR)
-    # inv_img2 = cv2.remap(img2, inv_map2x, None, cv2.INTER_LINEAR)
-
-    # plt.figure(1)
-    # plt.imshow(inv_img1)
-    # plt.figure(2)
-    # plt.imshow(inv_img2)
-    # plt.show()
-    # return
+    img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
+    img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
     
     mask1 = segmentation(img1)
     mask2 = segmentation(img2)
@@ -71,10 +61,10 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     # Perform reconstruction
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-    final_tck = optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img)
-    return
+    final_tck = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2)
     final_tck.c = change_coords(final_tck.c, P1[:, :3])
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
+    return
 
     # Evaluate reconstruction accuracy
     if SIMULATION:
@@ -126,69 +116,7 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     else:
         return left, left_max, right, right_max
 
-def length_error(ours, gt):
-    ours_der = ours.derivative()
-    gt_der = gt.derivative()
 
-    def integrand(u, dspline):
-        return np.linalg.norm(dspline(u))
-    
-    ours_len = scipy.integrate.quad(integrand, ours.t[0], ours.t[-1], args=(ours_der))[0]
-    gt_len = scipy.integrate.quad(integrand, gt.t[0], gt.t[-1], args=(gt_der))[0]
-    return ours_len, gt_len, ours_len - gt_len
-
-def curve_error(ours, gt, num_eval_pts):
-    def objective(u, gt_pt):
-        return np.linalg.norm(gt_pt - ours(u))
-    
-    # Find direction of ordering
-    to_start = np.linalg.norm(gt(gt.t[0]) - ours(ours.t[0]))
-    to_end = np.linalg.norm(gt(gt.t[-1]) - ours(ours.t[0]))
-    aligned = True if to_start < to_end else False
-    
-    errors = np.zeros(num_eval_pts)
-    spots = np.zeros(num_eval_pts)
-    gt_pts = gt(np.linspace(gt.t[0], gt.t[-1], num_eval_pts))
-    slider = ours.t[0] if aligned else ours.t[-1]
-    for i, gt_pt in enumerate(gt_pts):
-        bounds = [(slider, ours.t[-1]) if aligned else (ours.t[0], slider)]
-        res1 = scipy.optimize.shgo(
-            objective,
-            bounds=bounds,
-            args=(gt_pt,)
-        )
-        res2 = scipy.optimize.differential_evolution(
-            objective,
-            bounds=bounds,
-            args=(gt_pt,)
-        )
-        if objective(res1.x, gt_pt) < objective(res2.x, gt_pt):
-            best = res1.x
-        else:
-            best = res2.x
-        # slider = best
-        spots[i] = best
-        errors[i] = objective(best, gt_pt)
-    return errors, spots, np.mean(errors), np.max(errors)
-
-def reprojection_error(ours, mask, P, num_eval_pts):
-    segpix = np.argwhere(mask>0)
-    u = np.linspace(ours.t[0], ours.t[-1], num_eval_pts)
-    pts = ours(u)
-    aug_pts = np.concatenate((pts, np.ones((pts.shape[0], 1))), axis=1)
-    proj_pts = (P @ aug_pts.T).T
-    proj_pts /= proj_pts[:, 2:].copy() + 1e-7
-    # plt.imshow(img, cmap="gray")
-    # plt.scatter(proj_pts[:, 0], proj_pts[:, 1], c="r")
-    # plt.show()
-    pixs = proj_pts[:, :2]
-    pixs[:, 0], pixs[:, 1] = pixs[:, 1].copy(), pixs[:, 0].copy()
-    errors = np.zeros(pts.shape[0])
-    for i, pix in enumerate(pixs):
-        pix = np.expand_dims(pix, 0)
-        diffs = np.linalg.norm(pix - segpix, axis=1)
-        errors[i] = np.min(diffs)
-    return np.mean(errors), np.max(errors)
 
 
 
@@ -197,8 +125,7 @@ if __name__ == "__main__":
     prefixes = ["left_recif_", "right_recif_"]
     start = 38
     ext = ".jpg"
-    #calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
-    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration.yaml"
+    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
     for i in range(1):
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)

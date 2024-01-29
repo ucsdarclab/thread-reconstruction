@@ -13,7 +13,7 @@ from reparam import reparam
 
 CONSTR_WIDTH_2D = 5
 
-def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
+def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2):
     # Get necessary values
     segpix1 = np.argwhere(mask1>0)
     init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
@@ -101,12 +101,12 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
         constr_l[-num_constr//3:] = constr_lower_d
         constr_u = np.zeros_like(constr_l)
         constr_u[-num_constr//3:] = constr_upper_d
-        solver.setup(P=csc_matrix(loss_coeff), q=np.zeros(num_ctrl*3), A=csc_matrix(constr_A), l=constr_l, u=constr_u)
+        solver.setup(P=csc_matrix(loss_coeff), q=np.zeros(num_ctrl*3), A=csc_matrix(constr_A), l=constr_l, u=constr_u, verbose=False)
         solver.warm_start(x=init_guess)
         result = solver.solve()
         return result.x
 
-    for i in range(10):
+    for i in range(5):
         new_spline, knots, keypt_s = reparam(spline, keypt_u)
         init_guess = new_spline.c.flatten()
         
@@ -116,6 +116,12 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
 
         old_samples = spline(np.linspace(0, keypt_u[-1], 150))
         new_samples = new_spline(np.linspace(0, knots[-1], 150))
+
+        num_eval_pts = 200
+        left, left_max = reprojection_error(new_spline, mask1, P1, num_eval_pts)
+        right, right_max = reprojection_error(new_spline, mask2, P2, num_eval_pts)
+        print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
+            % (left, left_max, right, right_max))
 
         # plt.imshow(img1, cmap="gray")
         ax = plt.subplot(projection="3d")
@@ -131,6 +137,7 @@ def optim(img1, mask1, img_3D, keypoints, grow_paths, order, cam2img):
         plt.show()
 
         spline, keypt_u = new_spline, keypt_s
+    return spline
     
 
 def augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order):

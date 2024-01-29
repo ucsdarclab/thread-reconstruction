@@ -53,7 +53,7 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
     
     # Reproject to 3D
     depth_calc = np.matmul(Q, depth_calc.copy())
-    depth_calc /= depth_calc[3].copy() + 1e-7
+    depth_calc /= np.clip(depth_calc[3].copy(), a_min=1e-7, a_max=None)
     img_3D[segpix1[:, 0], segpix1[:, 1], 2] = depth_calc[2]
     
     # prune unreliable points
