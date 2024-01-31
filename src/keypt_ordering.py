@@ -3,7 +3,7 @@ import matplotlib.image as mpimg
 from matplotlib import collections
 from matplotlib import colors as mcolors
 import numpy as np
-import cv2
+import networkx as nx
 
 def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents):
     # Partition growpaths into individual disjoint parts using BFS
@@ -118,8 +118,48 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
                         segment.append(keypoints.shape[0])
                     keypoints = np.concatenate((keypoints, np.expand_dims(new_end, 0)), axis=0)
                     grow_paths.append({tuple(pix) for pix in part})
-        
+    
     # Connect segments
+    def segment_distances(seg1, seg2):
+        keypt_1_1, keypt_1_2 = keypoints[seg1[0], :2], keypoints[seg1[-1], :2]
+        keypt_2_1, keypt_2_2 = keypoints[seg2[0], :2], keypoints[seg2[-1], :2]
+        seg_dist = np.array([
+            np.linalg.norm(keypt_1_1 - keypt_2_1),
+            np.linalg.norm(keypt_1_1 - keypt_2_2),
+            np.linalg.norm(keypt_1_2 - keypt_2_1),
+            np.linalg.norm(keypt_1_2 - keypt_2_2),
+        ])
+        return seg_dist
+    
+    def connect_cost(seg1, seg2):
+        return np.min(segment_distances(seg1, seg2))
+
+    if len(segments) > 1:
+        connect_nodes = np.arange(len(segments))
+        connect_edges = []
+        for i in range(len(segments)):
+            for j in range(i+1, len(segments)):
+                connect_edges.append([i, j, {"weight":connect_cost(segments[i], segments[j])}])
+        connect_graph = nx.Graph()
+        connect_graph.add_nodes_from(connect_nodes)
+        connect_graph.add_edges_from(connect_edges)
+        segment_order = nx.approximation.traveling_salesman_problem(connect_graph, cycle=False)
+        
+        order = []
+        for s1, s2 in zip(segment_order[:-1], segment_order[1:]):
+            flip_case = np.argmin(segment_distances(segments[s1], segments[s2]))
+            if flip_case == 0 or flip_case == 1:
+                segments[s1].reverse()
+                assert(s1 == segment_order[0])
+            if flip_case == 1 or flip_case == 3:
+                segments[s2].reverse()
+            order += segments[s1]
+        order += segments[segment_order[-1]]
+    else:
+        order = segments[0]
+
+
+    return img_3D, keypoints, grow_paths, order
 
     # lines = []
     # for c_id, adj in enumerate(adjacents):
@@ -142,10 +182,3 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     # plt.imshow(img1)
     # plt.scatter(keypoints[:, 1], keypoints[:, 0])
     # for segment in segments:
-    #     segment = keypoints[np.array(segment)]
-    #     plt.scatter(segment[:, 1], segment[:, 0],\
-    #         c=np.arange(0, segment.shape[0]), cmap="hot")
-    # plt.show()
-
-
-    return img_3D, keypoints, grow_paths, segments[0]

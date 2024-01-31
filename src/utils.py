@@ -110,7 +110,7 @@ def reprojection_error(ours, mask, P, num_eval_pts):
     proj_pts = (P @ aug_pts.T).T
     proj_pts /= proj_pts[:, 2:].copy() + 1e-7
     plt.imshow(mask, cmap="gray")
-    plt.scatter(proj_pts[:, 0], proj_pts[:, 1], c="r")
+    plt.scatter(proj_pts[:, 0], proj_pts[:, 1], c="r", s=1)
     plt.show()
     pixs = proj_pts[:, :2]
     pixs[:, 0], pixs[:, 1] = pixs[:, 1].copy(), pixs[:, 0].copy()
