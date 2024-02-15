@@ -126,7 +126,7 @@ if __name__ == "__main__":
     start = 0
     ext = ".jpg"
     calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
-    for i in range(78, 279, 10):
+    for i in range(36, 88, 10): #end at 279
         print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)

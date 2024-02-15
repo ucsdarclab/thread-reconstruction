@@ -260,8 +260,8 @@ def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
     dists = np.linalg.norm(init_pts[1:, :2] - init_pts[:-1, :2], axis=1)
     dists /= np.sum(dists)
     u = np.zeros(init_pts.shape[0])
-    u[1:] = np.cumsum(dists) * dists.shape[0]
-    u[-1] = dists.shape[0]
+    u[1:] = np.cumsum(dists)
+    u[-1] = 1
 
     key_weight = init_pts.shape[0] / keypoints.shape[0]
     w = np.ones_like(u)

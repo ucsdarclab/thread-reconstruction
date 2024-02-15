@@ -26,21 +26,30 @@ def reparam(spline, keypt_u):
     # Integrate curve speed to get segment lengths
     # And lengths between keypoints
     knots, ctrl, k = spline.t, spline.c, spline.k
-    segment_l = []
     dspline = spline.derivative()
 
+    total_l = 0
+    for a, b in zip(knots[:-1], knots[1:]):
+        total_l += arclength(dspline, a, b)
+    
+    segment_l = []
     u_idx = 0
     keypt_s = []
     l_traversed = 0
     for a, b in zip(knots[:-1], knots[1:]):
-        li = arclength(dspline, a, b)
+        li = arclength(dspline, a, b) / total_l
         segment_l.append(li)
-        while(u_idx < len(keypt_u) and keypt_u[u_idx] <= b + 1e-3):
-            keypt_si = l_traversed + arclength(dspline, a, keypt_u[u_idx])
+        while(u_idx < len(keypt_u) and keypt_u[u_idx] <= b + 1e-4):
+            keypt_si = l_traversed + arclength(dspline, a, keypt_u[u_idx])/total_l
             keypt_s.append(keypt_si)
             u_idx += 1
         l_traversed += li
     
+    """
+    ##########################
+    The following is redundant
+    ##########################
+    """
     # Find m equally spaced points
     m = (ctrl.shape[0] - k)*INNER_MULT*OUTER_MULT
     spacing = sum(segment_l)/(m-1)
@@ -55,7 +64,7 @@ def reparam(spline, keypt_u):
             l_diff = i*spacing - l_traversed
         
         def rootfinder(x):
-            return l_diff - arclength(dspline, knots[j], x)
+            return l_diff - arclength(dspline, knots[j], x)/total_l
         
         t_bisect = scipy.optimize.bisect(rootfinder, knots[j], knots[j+1])
         t_spaced.append(t_bisect)
@@ -63,9 +72,6 @@ def reparam(spline, keypt_u):
 
     # New spline parameters
     s_spaced = [i*spacing for i in range(m)]
-    new_knots = np.array([s_spaced[0] for _ in range(k+1)] + \
-                s_spaced[1:-1:OUTER_MULT] + \
-                [s_spaced[-1] for _ in range(k+1)])
 
     # Fit spline to previously collected points
     init_pts = spline(t_spaced)
@@ -76,7 +82,7 @@ def reparam(spline, keypt_u):
         init_pts.T,
         u=init_s,
         task=-1,
-        t=new_knots,
+        t=knots,
         k=k,
         nest=init_s.shape[0]+k+1
     )
@@ -100,7 +106,7 @@ def reparam(spline, keypt_u):
     # validate_reparam(new_spline)
 
 
-    return new_spline, new_knots, keypt_s
+    return new_spline, knots, keypt_s
 
 def validate_reparam(spline):
     # Integrate curve speed to get segment lengths
