@@ -6,11 +6,13 @@ import cv2
 import os
 
 from segmentation import segmentation
+from SAM.sam_segmentation import SAM_segmentation
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
 from optim import optim
 from utils import *
 
+SAM = True
 SIMULATION = False
 STORE = False
 
@@ -37,8 +39,12 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
     img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
     
-    mask1 = segmentation(img1)
-    mask2 = segmentation(img2)
+    if SAM:
+        mask1 = SAM_segmentation(img1)
+        mask2 = SAM_segmentation(img2)
+    else:
+        mask1 = segmentation(img1)
+        mask2 = segmentation(img2)
     
 
     # plt.figure(1)
@@ -126,7 +132,7 @@ if __name__ == "__main__":
     start = 0
     ext = ".jpg"
     calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
-    for i in range(36, 88, 10): #end at 279
+    for i in range(86, 88, 10): #end at 279
         print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)
