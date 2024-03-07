@@ -4,15 +4,15 @@ import numpy as np
 import scipy.interpolate as interp
 import cv2
 import os
+import torch
 
-from segmentation import segmentation
-from SAM.sam_segmentation import SAM_segmentation
+from segmenter import SAMSegmenter, UNetSegmenter
 from keypt_selection import keypt_selection
 from keypt_ordering import keypt_ordering
 from optim import optim
 from utils import *
 
-SAM = True
+USE_SAM = True
 SIMULATION = False
 STORE = False
 
@@ -39,12 +39,15 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
     img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
     
-    if SAM:
-        mask1 = SAM_segmentation(img1)
-        mask2 = SAM_segmentation(img2)
+    if USE_SAM:
+        device = "cpu"
+        model_type = "vit_h"
+        segmenter = SAMSegmenter(device, model_type)
     else:
-        mask1 = segmentation(img1)
-        mask2 = segmentation(img2)
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        segmenter = UNetSegmenter(device)
+    mask1 = segmenter.segmentation(img1)
+    mask2 = segmenter.segmentation(img2)
     
 
     # plt.figure(1)
@@ -127,12 +130,12 @@ def fit_eval(img1, img2, calib, gt_tck=None):
 
 
 if __name__ == "__main__":
-    inp_folder = os.path.dirname(__file__) + "/../../thread_segmentation/thread_2/"
+    inp_folder = os.path.dirname(__file__) + "/../../thread_2/"
     prefixes = ["left_recif_", "right_recif_"]
     start = 0
     ext = ".jpg"
-    calib = "/Users/neelay/ARClabXtra/Suture_Thread_06_16/camera_calibration_sarah.yaml"
-    for i in range(86, 88, 10): #end at 279
+    calib = os.path.dirname(__file__) + "/../../camera_calibration_sarah.yaml"
+    for i in range(28, 218, 10): #end at 279
         print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)
@@ -140,10 +143,11 @@ if __name__ == "__main__":
         imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
         img2 = cv2.imread(imfile2)
         img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        try:
-            fit_eval(img1, img2, calib)
-        except Exception as e:
-            print("FAILED: " + str(e))
+        fit_eval(img1, img2, calib)
+        # try:
+        #     fit_eval(img1, img2, calib)
+        # except Exception as e:
+        #     print("FAILED: " + str(e))
     """
     # Run reconstruction on datasets
     # Simulated Dataset
