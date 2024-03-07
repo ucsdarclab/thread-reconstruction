@@ -135,7 +135,7 @@ if __name__ == "__main__":
     else:
         device = "cuda" if torch.cuda.is_available() else "cpu"
         segmenter = UNetSegmenter(device)
-    for i in range(28, 218, 10): #end at 279
+    for i in range(78, 218, 10): #end at 279
         print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
         img1 = cv2.imread(imfile1)
@@ -143,11 +143,10 @@ if __name__ == "__main__":
         imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
         img2 = cv2.imread(imfile2)
         img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        fit_eval(img1, img2, calib, segmenter)
-        # try:
-        #     fit_eval(img1, img2, calib)
-        # except Exception as e:
-        #     print("FAILED: " + str(e))
+        try:
+            fit_eval(img1, img2, calib, segmenter)
+        except Exception as e:
+            print("FAILED: " + str(e))
     """
     # Run reconstruction on datasets
     # Simulated Dataset

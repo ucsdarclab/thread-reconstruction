@@ -158,6 +158,10 @@ def keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, a
     else:
         order = segments[0]
 
+    plt.clf()
+    plt.imshow(img1)
+    plt.scatter(keypoints[order, 1], keypoints[order, 0], c=np.arange(len(order)), cmap="hot")
+    plt.show()
 
     return img_3D, keypoints, grow_paths, order
 

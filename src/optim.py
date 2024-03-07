@@ -15,22 +15,20 @@ CONSTR_WIDTH_2D = 5
 
 def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2):
     # Get necessary values
-    segpix1 = np.argwhere(mask1>0)
     # init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
     init_pts, keypoint_idxs = keypoints[order], np.arange(len(order))
-    spline, init_u, low_constr, high_constr = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
+    knots, init_u, constr_lower_d, constr_upper_d = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
     keypt_u = init_u[keypoint_idxs]
     k = 3
-    num_ctrl = len(spline.t)-k-1
+    num_ctrl = len(knots)-k-1
     num_constr = len(keypt_u)*3
+    spline = None
 
     constr_centers = keypoints[order]
     constr_lower_px = constr_centers[:, 1] - CONSTR_WIDTH_2D
     constr_upper_px = constr_centers[:, 1] + CONSTR_WIDTH_2D
     constr_lower_py = constr_centers[:, 0] - CONSTR_WIDTH_2D
     constr_upper_py = constr_centers[:, 0] + CONSTR_WIDTH_2D
-    constr_lower_d = low_constr(keypt_u)
-    constr_upper_d = high_constr(keypt_u)
 
     # Put bounds in a good shape
     # x constr
@@ -110,7 +108,7 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
 
     for i in range(5):
         if i == 0:
-            knots, keypt_s = spline.t, keypt_u
+            knots, keypt_s = knots, keypt_u
             init_guess = None
         else:
             new_spline, knots, keypt_s = reparam(spline, keypt_u)
@@ -124,7 +122,7 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
         new_ctrl = qp_out.reshape(num_ctrl, 3)
         new_spline = interp.BSpline(knots, new_ctrl, k)
 
-        old_samples = spline(np.linspace(0, keypt_u[-1], 150))
+        # old_samples = spline(np.linspace(0, keypt_u[-1], 150))
         new_samples = new_spline(np.linspace(0, knots[-1], 150))
 
         num_eval_pts = 200
@@ -135,7 +133,7 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
 
         # plt.imshow(img1, cmap="gray")
         ax = plt.subplot(projection="3d")
-        ax.plot(old_samples[:, 0], old_samples[:, 1], old_samples[:, 2])
+        # ax.plot(old_samples[:, 0], old_samples[:, 1], old_samples[:, 2])
         ax.plot(new_samples[:, 0], new_samples[:, 1], new_samples[:, 2])
         ax.scatter(new_ctrl[..., 0], new_ctrl[..., 1], new_ctrl[..., 2])
         ax.plot(new_spline(keypt_s)[:, 0], new_spline(keypt_s)[:, 1], constr_lower_d, c="turquoise")
@@ -256,37 +254,13 @@ def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
         bound_rads.append(bound_rad)
         if bound_rad > bound_thresh:
             lowest_nonzero = min(lowest_nonzero, bound_rad)
+    
     # Set bounds, accounting for minimum radius threshold
     for key_ord, (key_id, bound_rad) in enumerate(zip(order, bound_rads)):
         if bound_rad <= bound_thresh:
             bound_rad = lowest_nonzero
         lower[key_ord] = keypoints[key_id] - np.array([[0, 0, bound_rad]])
         upper[key_ord] = keypoints[key_id] + np.array([[0, 0, bound_rad]])
-
-    # initialize 3D spline
-    k = 3
-    num_ctrl = 20
-
-    dists = np.linalg.norm(init_pts[1:, :2] - init_pts[:-1, :2], axis=1)
-    dists /= np.sum(dists)
-    u = np.zeros(init_pts.shape[0])
-    u[1:] = np.cumsum(dists)
-    u[-1] = 1
-
-    key_weight = init_pts.shape[0] / keypoints.shape[0]
-    w = np.ones_like(u)
-    w[keypoint_idxs] = key_weight
-    knots = np.concatenate(
-        (np.repeat(0, k),
-        np.linspace(0, u[-1], num_ctrl),
-        np.repeat(u[-1], k))
-    )
-
-    # Set depths to follow centerline between boundaries
-    low_constr = interp.interp1d(u[keypoint_idxs], lower[:, 2])
-    high_constr = interp.interp1d(u[keypoint_idxs], upper[:, 2])
-    center = (low_constr(u) + high_constr(u))/2
-    init_pts[:, 2] = center
 
     # Get endpoint trends to get endpoint constraints
     # TODO is second iteration of line fitting necessary?
@@ -317,13 +291,23 @@ def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
     # Bring points into camera coords
     init_pts = change_coords(init_pts, cam2img)
 
-    # Fit spline to initial points
-    tck, u, *_ = interp.splprep(init_pts.T, w=w, u=u, k=k, task=-1, t=knots)
-    t = tck[0]
-    c = np.array(tck[1]).T
-    k = tck[2]
-    spline = interp.BSpline(t, c, k)
-    return spline, u, low_constr, high_constr
+    # initialize 3D spline
+    k = 3
+    num_ctrl = 20
+
+    dists = np.linalg.norm(init_pts[1:] - init_pts[:-1], axis=1)
+    dists /= np.sum(dists)
+    u = np.zeros(init_pts.shape[0])
+    u[1:] = np.cumsum(dists)
+    u[-1] = 1
+
+    knots = np.concatenate(
+        (np.repeat(0, k),
+        np.linspace(0, u[-1], num_ctrl),
+        np.repeat(u[-1], k))
+    )
+
+    return knots, u, lower[:, 2], upper[:, 2]
 
 def get_deriv_matrix(knots, num_ctrl, k):
     mat = np.zeros((3*(num_ctrl-1), 3*num_ctrl))
