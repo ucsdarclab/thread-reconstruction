@@ -12,11 +12,11 @@ from keypt_ordering import keypt_ordering
 from optim import optim
 from utils import *
 
-USE_SAM = True
+USE_SAM = False
 SIMULATION = False
 STORE = False
 
-def fit_eval(img1, img2, calib, gt_tck=None):
+def fit_eval(img1, img2, calib, segmenter, gt_tck=None):
     # Read in camera matrix
     cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
     K1 = cv_file.getNode("K1").mat()
@@ -39,13 +39,6 @@ def fit_eval(img1, img2, calib, gt_tck=None):
     img1 = cv2.remap(img1, map1x, map1y, cv2.INTER_LINEAR)
     img2 = cv2.remap(img2, map2x, map2y, cv2.INTER_LINEAR)
     
-    if USE_SAM:
-        device = "cpu"
-        model_type = "vit_h"
-        segmenter = SAMSegmenter(device, model_type)
-    else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        segmenter = UNetSegmenter(device)
     mask1 = segmenter.segmentation(img1)
     mask2 = segmenter.segmentation(img2)
     
@@ -135,6 +128,13 @@ if __name__ == "__main__":
     start = 0
     ext = ".jpg"
     calib = os.path.dirname(__file__) + "/../../camera_calibration_sarah.yaml"
+    if USE_SAM:
+        device = "cpu"
+        model_type = "vit_h"
+        segmenter = SAMSegmenter(device, model_type)
+    else:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        segmenter = UNetSegmenter(device)
     for i in range(28, 218, 10): #end at 279
         print(start+i)
         imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
@@ -143,7 +143,7 @@ if __name__ == "__main__":
         imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
         img2 = cv2.imread(imfile2)
         img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        fit_eval(img1, img2, calib)
+        fit_eval(img1, img2, calib, segmenter)
         # try:
         #     fit_eval(img1, img2, calib)
         # except Exception as e:
