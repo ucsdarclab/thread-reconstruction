@@ -16,7 +16,8 @@ CONSTR_WIDTH_2D = 5
 def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2):
     # Get necessary values
     segpix1 = np.argwhere(mask1>0)
-    init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
+    # init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
+    init_pts, keypoint_idxs = keypoints[order], np.arange(len(order))
     spline, init_u, low_constr, high_constr = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
     keypt_u = init_u[keypoint_idxs]
     k = 3
@@ -102,13 +103,22 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
         constr_u = np.zeros_like(constr_l)
         constr_u[-num_constr//3:] = constr_upper_d
         solver.setup(P=csc_matrix(loss_coeff), q=np.zeros(num_ctrl*3), A=csc_matrix(constr_A), l=constr_l, u=constr_u, verbose=False)
-        solver.warm_start(x=init_guess)
+        if init_guess is not None:
+            solver.warm_start(x=init_guess)
         result = solver.solve()
         return result.x
 
     for i in range(5):
-        new_spline, knots, keypt_s = reparam(spline, keypt_u)
-        init_guess = new_spline.c.flatten()
+        if i == 0:
+            knots, keypt_s = spline.t, keypt_u
+            init_guess = None
+        else:
+            new_spline, knots, keypt_s = reparam(spline, keypt_u)
+            
+            param_change = np.abs(np.array(keypt_s) - np.array(keypt_u))
+            print(np.mean(param_change), np.std(param_change))
+
+            init_guess = new_spline.c.flatten()
         
         qp_out = QP_step(init_guess, knots, keypt_s)
         new_ctrl = qp_out.reshape(num_ctrl, 3)
@@ -120,8 +130,8 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
         num_eval_pts = 200
         left, left_max = reprojection_error(new_spline, mask1, P1, num_eval_pts)
         right, right_max = reprojection_error(new_spline, mask2, P2, num_eval_pts)
-        print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
-            % (left, left_max, right, right_max))
+        # print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
+        #     % (left, left_max, right, right_max))
 
         # plt.imshow(img1, cmap="gray")
         ax = plt.subplot(projection="3d")
