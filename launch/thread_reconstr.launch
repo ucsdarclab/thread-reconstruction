@@ -1,0 +1,3 @@
+<launch>
+    <node pkg="thread_reconstruction" name="thread_reconstr_node" type="thread_reconstr_node.py" output="screen"></node>
+</launch>
