@@ -1,4 +1,4 @@
 # request
 ---
 # response
-geometry_msgs/PointStamped graspPoint
+geometry_msgs/PoseStamped graspPoint
