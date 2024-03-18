@@ -9,7 +9,7 @@ from read_dvrk_msg.ros_dvrk import ROSdVRK
 from psm_control.psm_control import PsmControl
 
 
-class GraspThreadNode:
+class ExecGraspNode:
     def __init__(self, psm_control):
         self.psm_control = psm_control
         self.grasp_sub = rospy.Subscriber("/thread_reconstr/grasp_pose", PoseStamped, self.execute_grasp, queue_size=1)
@@ -34,5 +34,5 @@ if __name__ == '__main__':
         joints=True, 
     )
     psm_control = PsmControl(ros_dvrk)
-    node = GraspThreadNode(psm_control)
+    node = ExecGraspNode(psm_control)
     rospy.spin()
