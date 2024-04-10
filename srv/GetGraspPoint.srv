@@ -1,4 +1,5 @@
 # request
+float64 s
 ---
 # response
 geometry_msgs/PoseStamped graspPoint

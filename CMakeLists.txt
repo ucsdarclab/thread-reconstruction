@@ -19,6 +19,7 @@ find_package(catkin REQUIRED COMPONENTS
 # Declare the service files to be built
 add_service_files(FILES
     GetGraspPoint.srv
+    Reconstruct.srv
 )
 
 # Actually generate the language-specific message and service files

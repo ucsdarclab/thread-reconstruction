@@ -24,9 +24,10 @@ class ExecGraspNode:
             pose.pose.position.y,
             pose.pose.position.z
         ])
-        self.psm_controller.openGripper(1)
-        self.psm_controller.controlPoseReeInCam(1, goal_pose_cam_ree)
-        self.psm_controller.closeGripper(1)
+        PSM = 2
+        self.psm_control.openGripper(PSM)
+        self.psm_control.controlPoseReeInCam(PSM, goal_pose_cam_ree)
+        # self.psm_control.closeGripper(PSM)
 
 if __name__ == '__main__': 
     ros_dvrk = ROSdVRK( # Calls "init_node" internally

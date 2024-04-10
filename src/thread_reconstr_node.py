@@ -7,7 +7,7 @@ from tf2_ros import Buffer, TransformListener
 from tf.transformations import *
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped
-from thread_reconstruction.srv import GetGraspPoint, GetGraspPointResponse
+from thread_reconstruction.srv import GetGraspPoint, GetGraspPointResponse, Reconstruct, ReconstructResponse
 
 import os
 import cv2
@@ -62,6 +62,9 @@ class ThreadReconstrNode:
         self.rectified_right_sub = message_filters.Subscriber("/stereo/right/rectified_downscaled_image", Image, queue_size=1)
         self.sync_stereo = message_filters.ApproximateTimeSynchronizer([self.rectified_left_sub, self.rectified_right_sub], queue_size=1, slop=0.2)
         self.sync_stereo.registerCallback(self.get_stereo_pair)
+
+        # Store reconstructions
+        self.spline = None
     
     def get_stereo_pair(self, left, right):
         try:
@@ -93,13 +96,23 @@ class ThreadReconstrNode:
         # Perform reconstruction
         img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, self.Q)
         img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-        spline = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
+        self.spline = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
 
+        return ReconstructResponse()
+
+    def grasp(self, request):
+        if self.spline == None:
+            rospy.logerr("thread_reconstr_node: No reconstruction found")
+            return None
+    
+        DVRK_OFFSET_Z = -0.01
+        
         # Get grasp pose in camera frame
-        grasp_s = 0.5 # TODO Consult input for grasp point
-        grasp_point = spline(grasp_s) * MM_TO_M
+        grasp_s = request.s
+        grasp_point = self.spline(grasp_s) * MM_TO_M
+        grasp_point[2] += DVRK_OFFSET_Z
         # Choose default grasp pose aligned with thread, flat in xy-plane
-        dspline = spline.derivative()
+        dspline = self.spline.derivative()
         grasp_z = dspline(grasp_s)
         cam_z = np.array([0, 0, 1]) 
         grasp_x = np.cross(cam_z, grasp_z)
@@ -129,5 +142,6 @@ class ThreadReconstrNode:
 if __name__ == "__main__":
     rospy.init_node("thread_reconstr_node", anonymous=True)
     node = ThreadReconstrNode()
-    service = rospy.Service('thread_reconstr_node/grasp', GetGraspPoint, node.reconstruct)
+    reconstr_service = rospy.Service('thread_reconstr_node/reconstruct', Reconstruct, node.reconstruct)
+    grasp_service = rospy.Service('thread_reconstr_node/grasp', GetGraspPoint, node.grasp)
     rospy.spin()
