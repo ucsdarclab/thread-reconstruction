@@ -21,6 +21,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files(FILES
     GetGraspPoint.srv
     Reconstruct.srv
+    RecordPSMPath.srv
 )
 
 # Actually generate the language-specific message and service files
