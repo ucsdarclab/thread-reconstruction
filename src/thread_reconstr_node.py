@@ -6,7 +6,8 @@ import cv_bridge
 from tf2_ros import Buffer, TransformListener
 from tf.transformations import *
 from sensor_msgs.msg import Image
-from geometry_msgs.msg import PoseStamped
+from geometry_msgs.msg import PoseStamped, Point
+from visualization_msgs.msg import Marker
 from thread_reconstruction.srv import GetGraspPoint, GetGraspPointResponse, Reconstruct, ReconstructResponse
 
 import os
@@ -50,7 +51,8 @@ class ThreadReconstrNode:
         self.tf_buf = Buffer()
         self.tf_listener = TransformListener(self.tf_buf)
 
-        # Set up grasp point pub
+        # Set up pubs
+        self.reconstr_pub = rospy.Publisher("/visualization_marker", Marker, queue_size=10)
         self.grasp_pub = rospy.Publisher("/thread_reconstr/grasp_pose", PoseStamped, queue_size=10)
 
         # Set up rectified stereo img listener
@@ -97,6 +99,36 @@ class ThreadReconstrNode:
         img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, self.Q)
         img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
         self.spline = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
+
+        # Publish to rviz
+        spline_pts = self.spline(np.linspace(0, 1, 50)) * MM_TO_M
+        marker = Marker()
+        marker.header.frame_id = "dvrk_cam"
+        marker.header.stamp = rospy.Time()
+        marker.ns = "thread_reconstr"
+        marker.id = 0
+        marker.type = Marker.LINE_STRIP
+        marker.action = Marker.ADD
+        marker.pose.position.x = 0
+        marker.pose.position.y = 0
+        marker.pose.position.z = 0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.001 # Default 1 mm thickness
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.points = []
+        for pt in spline_pts:
+            point = Point()
+            point.x, point.y, point.z = pt[0], pt[1], pt[2]
+            marker.points.append(point)
+        marker.lifetime = rospy.Duration(0)
+        marker.frame_locked = True
+        self.reconstr_pub.publish(marker)
 
         return ReconstructResponse()
 

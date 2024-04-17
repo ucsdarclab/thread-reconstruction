@@ -7,6 +7,7 @@ find_package(catkin REQUIRED COMPONENTS
     std_msgs
     sensor_msgs
     geometry_msgs
+    visualization_msgs
     message_generation
 )
 
