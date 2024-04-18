@@ -62,6 +62,7 @@ class RecordPSMPathNode:
             ros_msg = self.ros_dvrk.getSyncMsg()
             current_pose_cam_base = ros_msg['pose_cam_base{}'.format(PSM)]
             current_pose_base_ree = ros_msg['pose_base_ee{}'.format(PSM)]
+            current_pose_ree_tip = [1, 0, 0, 0, 0, 0.0102, 0]
             current_H_cam_base = utils.posquat2H(
                 current_pose_cam_base[-3:], 
                 current_pose_cam_base[:4], 
@@ -70,14 +71,18 @@ class RecordPSMPathNode:
                 current_pose_base_ree[-3:], 
                 current_pose_base_ree[:4], 
             )
-            current_H_cam_ree = current_H_cam_base @ current_H_base_ree
-            current_pos_cam_ree, current_quat_cam_ree = utils.matrix2PosQuat(current_H_cam_ree)
+            current_H_ree_tip= utils.posquat2H(
+                current_pose_ree_tip[-3:], 
+                current_pose_ree_tip[:4], 
+            )
+            current_H_cam_tip = current_H_cam_base @ current_H_base_ree @ current_H_ree_tip
+            current_pos_cam_tip, current_quat_cam_tip = utils.matrix2PosQuat(current_H_cam_tip)
 
             # Add points if spacing distance is met
-            if len(self.path) == 0 or np.linalg.norm(self.path[-1] - current_pos_cam_ree) > self.spacing:
-                self.path.append(current_pos_cam_ree)
+            if len(self.path) == 0 or np.linalg.norm(self.path[-1] - current_pos_cam_tip) > self.spacing:
+                self.path.append(current_pos_cam_tip)
                 point = Point()
-                point.x, point.y, point.z = current_pos_cam_ree[0], current_pos_cam_ree[1], current_pos_cam_ree[2]
+                point.x, point.y, point.z = current_pos_cam_tip[0], current_pos_cam_tip[1], current_pos_cam_tip[2]
                 self.marker.points.append(point)
                 self.path_pub.publish(self.marker)
 
