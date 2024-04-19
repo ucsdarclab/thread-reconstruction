@@ -1,0 +1,7 @@
+# request
+float64 start
+float64 stop
+float64 step
+bool record
+---
+# response

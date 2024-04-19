@@ -8,7 +8,10 @@ from tf.transformations import *
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, Point
 from visualization_msgs.msg import Marker
-from thread_reconstruction.srv import GetGraspPoint, GetGraspPointResponse, Reconstruct, ReconstructResponse
+from thread_reconstruction.srv import \
+    Reconstruct, ReconstructResponse, \
+    TraceThread, TraceThreadResponse, \
+    RecordPSMPath, Grasp
 
 import os
 import cv2
@@ -23,7 +26,11 @@ from utils import *
 MM_TO_M = 1/1000
 
 class ThreadReconstrNode:
-    def __init__(self):
+    def __init__(self, grasp_service, record_service):
+        # Save service proxies
+        self.grasp_service = grasp_service
+        self.record_service = record_service
+        
         # Set up camera params
         calib = os.path.dirname(__file__) + "/../../camera_calibration_sarah.yaml"
         cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
@@ -132,17 +139,9 @@ class ThreadReconstrNode:
 
         return ReconstructResponse()
 
-    def grasp(self, request):
-        if self.spline == None:
-            rospy.logerr("thread_reconstr_node: No reconstruction found")
-            return None
-    
-        DVRK_OFFSET_Z = -0.01
-        
+    def grasp(self, grasp_s):
         # Get grasp pose in camera frame
-        grasp_s = request.s
         grasp_point = self.spline(grasp_s) * MM_TO_M
-        grasp_point[2] += DVRK_OFFSET_Z
         # Choose default grasp pose aligned with thread, flat in xy-plane
         dspline = self.spline.derivative()
         grasp_z = dspline(grasp_s)
@@ -154,6 +153,9 @@ class ThreadReconstrNode:
         R_grasp_ori[:3, 0] = grasp_x / np.linalg.norm(grasp_x)
         R_grasp_ori[:3, 1] = grasp_y / np.linalg.norm(grasp_y)
         R_grasp_ori[:3, 2] = grasp_z / np.linalg.norm(grasp_z)
+        # Offset on grasp y-axis to handle ree-to-tip distance
+        REE_TO_TIP = 0.0102 # Taken from dvrk manual
+        grasp_point -= R_grasp_ori[:3, 1] * REE_TO_TIP
         # Convert to PoseStamped
         grasp_quat_cam = quaternion_from_matrix(R_grasp_ori)
         grasp_pose = PoseStamped()
@@ -167,13 +169,45 @@ class ThreadReconstrNode:
         grasp_pose.pose.orientation.z = grasp_quat_cam[2]
         grasp_pose.pose.orientation.w = grasp_quat_cam[3]
 
-        # Send grasp point
-        self.grasp_pub.publish(grasp_pose)
-        return GetGraspPointResponse(grasp_pose)
+        # Send grasp point to grasp service
+        self.grasp_service(grasp_pose)
+    
+    def trace(self, request):
+        if self.spline == None:
+            rospy.logerr("thread_reconstr_node: No reconstruction found")
+            return None
+
+        # Construct trace path
+        num_waypoints = 1 + (request.stop - request.start) / request.step
+        waypoint_s = request.start + np.arange(0, num_waypoints)*request.step
+
+        # Initialize trace
+        self.grasp(waypoint_s[0])
+        if request.record:
+            self.record_service(True, request.step)
+
+        # Execute trace
+        for s in waypoint_s[1:]:
+            self.grasp(s)
+        
+        # Shutdown trace
+        if request.record:
+            self.record_service(False, request.step)
+        return TraceThreadResponse()
+
+
 
 if __name__ == "__main__":
     rospy.init_node("thread_reconstr_node", anonymous=True)
-    node = ThreadReconstrNode()
+    
+    rospy.loginfo("thread_reconstr_node: Waiting for grasp and record services...")
+    rospy.wait_for_service("exec_grasp_node/grasp")
+    grasp_service = rospy.ServiceProxy("exec_grasp_node/grasp", Grasp)
+    rospy.wait_for_service("record_psm_path_node/toggle_recording")
+    record_service = rospy.ServiceProxy("record_psm_path_node/toggle_recording", RecordPSMPath)
+    rospy.loginfo("thread_reconstr_node: Services found!")
+    
+    node = ThreadReconstrNode(grasp_service, record_service)
     reconstr_service = rospy.Service('thread_reconstr_node/reconstruct', Reconstruct, node.reconstruct)
-    grasp_service = rospy.Service('thread_reconstr_node/grasp', GetGraspPoint, node.grasp)
+    trace_service = rospy.Service('thread_reconstr_node/trace', TraceThread, node.trace)
     rospy.spin()

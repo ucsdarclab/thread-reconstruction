@@ -2,6 +2,7 @@
 
 import rospy
 from geometry_msgs.msg import PoseStamped
+from thread_reconstruction.srv import Grasp, GraspResponse
 
 import numpy as np
 
@@ -14,7 +15,8 @@ class ExecGraspNode:
         self.psm_control = psm_control
         self.grasp_sub = rospy.Subscriber("/thread_reconstr/grasp_pose", PoseStamped, self.execute_grasp, queue_size=1)
     
-    def execute_grasp(self, pose):
+    def execute_grasp(self, request):
+        pose = request.graspPoint
         goal_pose_cam_ree = np.array([ #TODO double check order
             pose.pose.orientation.w,
             pose.pose.orientation.x,
@@ -25,9 +27,11 @@ class ExecGraspNode:
             pose.pose.position.z
         ])
         PSM = 2
-        self.psm_control.openGripper(PSM)
+        # self.psm_control.openGripper(PSM)
         self.psm_control.controlPoseReeInCam(PSM, goal_pose_cam_ree)
         # self.psm_control.closeGripper(PSM)
+        return GraspResponse()
+
 
 if __name__ == '__main__': 
     ros_dvrk = ROSdVRK( # Calls "init_node" internally
@@ -36,4 +40,5 @@ if __name__ == '__main__':
     )
     psm_control = PsmControl(ros_dvrk)
     node = ExecGraspNode(psm_control)
+    service = rospy.Service('exec_grasp_node/grasp', Grasp, node.execute_grasp)
     rospy.spin()
