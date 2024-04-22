@@ -155,7 +155,7 @@ class ThreadReconstrNode:
         R_grasp_ori[:3, 2] = grasp_z / np.linalg.norm(grasp_z)
         # Offset on grasp y-axis to handle ree-to-tip distance
         REE_TO_TIP = 0.0102 # Taken from dvrk manual
-        grasp_point -= R_grasp_ori[:3, 1] * REE_TO_TIP
+        grasp_point -= R_grasp_ori[:3, 1] * REE_TO_TIP / 2 # grasp point is halfway to tip distance
         # Convert to PoseStamped
         grasp_quat_cam = quaternion_from_matrix(R_grasp_ori)
         grasp_pose = PoseStamped()
@@ -169,8 +169,24 @@ class ThreadReconstrNode:
         grasp_pose.pose.orientation.z = grasp_quat_cam[2]
         grasp_pose.pose.orientation.w = grasp_quat_cam[3]
 
+        # Approach from a distance
+        approach_len = 0.02
+        approach_point = grasp_point - R_grasp_ori[:3, 1] * approach_len
+        approach_pose = PoseStamped()
+        approach_pose.header.stamp = self.stamp
+        approach_pose.header.frame_id = "dvrk_cam"
+        approach_pose.pose.position.x = approach_point[0]
+        approach_pose.pose.position.y = approach_point[1]
+        approach_pose.pose.position.z = approach_point[2]
+        approach_pose.pose.orientation.x = grasp_quat_cam[0]
+        approach_pose.pose.orientation.y = grasp_quat_cam[1]
+        approach_pose.pose.orientation.z = grasp_quat_cam[2]
+        approach_pose.pose.orientation.w = grasp_quat_cam[3]
+        
         # Send grasp point to grasp service
-        self.grasp_service(grasp_pose)
+        self.grasp_service(approach_pose, False)
+        self.grasp_service(grasp_pose, True)
+        self.grasp_service(approach_pose, False)
     
     def trace(self, request):
         if self.spline == None:
@@ -184,7 +200,7 @@ class ThreadReconstrNode:
         # Initialize trace
         self.grasp(waypoint_s[0])
         if request.record:
-            self.record_service(True, request.step)
+            self.record_service(True, 0.005)
 
         # Execute trace
         for s in waypoint_s[1:]:
@@ -192,7 +208,7 @@ class ThreadReconstrNode:
         
         # Shutdown trace
         if request.record:
-            self.record_service(False, request.step)
+            self.record_service(False, 0.005)
         return TraceThreadResponse()
 
 

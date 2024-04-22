@@ -5,6 +5,7 @@ from geometry_msgs.msg import PoseStamped
 from thread_reconstruction.srv import Grasp, GraspResponse
 
 import numpy as np
+import time
 
 from read_dvrk_msg.ros_dvrk import ROSdVRK
 from psm_control.psm_control import PsmControl
@@ -27,9 +28,14 @@ class ExecGraspNode:
             pose.pose.position.z
         ])
         PSM = 2
-        # self.psm_control.openGripper(PSM)
+        if request.move_jaw:
+            self.psm_control.openGripper(PSM)
         self.psm_control.controlPoseReeInCam(PSM, goal_pose_cam_ree)
-        # self.psm_control.closeGripper(PSM)
+        if request.move_jaw:
+            self.psm_control.closeGripper(PSM)
+            time.sleep(0.5)
+            self.psm_control.openGripper(PSM)
+        
         return GraspResponse()
 
 

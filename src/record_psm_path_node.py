@@ -62,7 +62,8 @@ class RecordPSMPathNode:
             ros_msg = self.ros_dvrk.getSyncMsg()
             current_pose_cam_base = ros_msg['pose_cam_base{}'.format(PSM)]
             current_pose_base_ree = ros_msg['pose_base_ee{}'.format(PSM)]
-            current_pose_ree_tip = [1, 0, 0, 0, 0, 0.0102, 0]
+            REE_TO_TIP = 0.0102 # Taken from dvrk manual
+            current_pose_ree_tip = [1, 0, 0, 0, 0, REE_TO_TIP/2, 0]
             current_H_cam_base = utils.posquat2H(
                 current_pose_cam_base[-3:], 
                 current_pose_cam_base[:4], 
