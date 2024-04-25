@@ -26,30 +26,36 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
     # Stereo match and get reliabilites
     for i in range(segpix1.shape[0]):
         pix = segpix1[i]
-        curr_max_disp = min(pix[1], max_disp)
-        chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
-        seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
-        energy = np.zeros(curr_max_disp)
-        for off in range(curr_max_disp):
-            g_l = img1[seg[:,0], seg[:,1]]
-            g_r = img2[seg[:,0], seg[:,1] - off]
-            # Compare blocks, heavily penalizing fully unsegmented right-image blocks
-            if (g_r < 1).all():
-                energy[off] = 255**2 * g_r.shape[0]
-            else:
-                energy[off] = np.sum((g_l - g_r)**2)
-        
-        best = np.min(energy)
-        disp = np.argmin(energy)
-        energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
-        next_best = np.min(energy2)
-        disp2 = np.argmin(energy2)
-        
-        x = (next_best - best)/((best + 1e-7)*c_data)
-        reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
+        try:
+            curr_max_disp = min(pix[1], max_disp)
+            chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
+            seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
-        depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+            energy = np.zeros(curr_max_disp)
+            for off in range(curr_max_disp):
+                g_l = img1[seg[:,0], seg[:,1]]
+                g_r = img2[seg[:,0], seg[:,1] - off]
+                # Compare blocks, heavily penalizing fully unsegmented right-image blocks
+                if (g_r < 1).all():
+                    energy[off] = 255**2 * g_r.shape[0]
+                else:
+                    energy[off] = np.sum((g_l - g_r)**2)
+            
+            best = np.min(energy)
+            disp = np.argmin(energy)
+            energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
+            next_best = np.min(energy2)
+            disp2 = np.argmin(energy2)
+            
+            x = (next_best - best)/((best + 1e-7)*c_data)
+            reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
+
+            depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+        # invalidate pixels near left image left edge
+        except ValueError:
+            reliab[i] = 0
+            depth_calc[:, i] = np.array([pix[0], pix[1], 0, 1])
     
     # Reproject to 3D
     depth_calc = np.matmul(Q, depth_calc.copy())
