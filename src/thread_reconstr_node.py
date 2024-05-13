@@ -24,6 +24,7 @@ from optim import optim
 from utils import *
 
 MM_TO_M = 1/1000
+PSM = 2
 
 class ThreadReconstrNode:
     def __init__(self, grasp_service, record_service):
@@ -140,14 +141,20 @@ class ThreadReconstrNode:
         return ReconstructResponse()
 
     def grasp(self, grasp_s):
-        # Get grasp pose in camera frame
+        # Get grasp point in camera frame
         grasp_point = self.spline(grasp_s) * MM_TO_M
-        # Choose default grasp pose aligned with thread, flat in xy-plane
+
+        # Choose grasp pose aligned with thread and easy for PSM to grasp
         dspline = self.spline.derivative()
         grasp_z = dspline(grasp_s)
-        cam_z = np.array([0, 0, 1]) 
-        grasp_x = np.cross(cam_z, grasp_z)
+        
+        pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
+        pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
+        base2grasp = grasp_point - pos_base
+        
+        grasp_x = np.cross(base2grasp, grasp_z)
         grasp_y = np.cross(grasp_z, grasp_x)
+
         # Represent as matrix
         R_grasp_ori = np.eye(4)
         R_grasp_ori[:3, 0] = grasp_x / np.linalg.norm(grasp_x)
