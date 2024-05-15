@@ -23,6 +23,13 @@ from keypt_ordering import keypt_ordering
 from optim import optim
 from utils import *
 
+CAPTURE = 0
+GUIDE = 1
+GRASP = 2
+
+SIMPLE = 0
+ROBUST = 1
+
 MM_TO_M = 1/1000
 PSM = 2
 
@@ -74,7 +81,7 @@ class ThreadReconstrNode:
         self.sync_stereo.registerCallback(self.get_stereo_pair)
 
         # Store reconstructions
-        self.spline = None
+        self.spline, self.reliability = None, None
     
     def get_stereo_pair(self, left, right):
         try:
@@ -106,7 +113,7 @@ class ThreadReconstrNode:
         # Perform reconstruction
         img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, self.Q)
         img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-        self.spline = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
+        self.spline, self.reliability = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
 
         # Publish to rviz
         spline_pts = self.spline(np.linspace(0, 1, 50)) * MM_TO_M
@@ -139,81 +146,99 @@ class ThreadReconstrNode:
         self.reconstr_pub.publish(marker)
 
         return ReconstructResponse()
+    
+    def simple_grasp(self, grasp_s):
+        self.grasp_service(self.get_pose(grasp_s), CAPTURE)
+        self.grasp_service(self.get_pose(grasp_s), GRASP)
 
-    def grasp(self, grasp_s):
+    def robust_grasp(self, grasp_s):
+        SAMPLES = 100
+        BASE_GUIDE_PROB = 0.99
+
+        # Compute capture point
+        candidates = np.linspace(0, 1, SAMPLES)
+        candidate_idxs = np.arange(SAMPLES)
+        reliabilities = self.reliability(candidates)
+        grasp_idx = np.round((SAMPLES-1) * grasp_s)
+        distances = np.abs(grasp_idx - candidate_idxs)
+        guide_probs = BASE_GUIDE_PROB ** distances
+        grasp_probs = reliabilities * guide_probs
+        capture_idx = np.argmax(grasp_probs)
+        capture_s = candidates[capture_idx]
+        
+        # Get guide waypoints
+        guide_dir = np.sign(grasp_idx - capture_idx)
+        guide_s = [] if guide_dir == 0 else candidates[int(capture_idx-guide_dir):int(grasp_idx):int(guide_dir)]
+
+        # Execute
+        self.grasp_service(self.get_pose(capture_s), CAPTURE)
+        for s in guide_s:
+            self.grasp_service(self.get_pose(s), GUIDE)
+        self.grasp_service(self.get_pose(grasp_s), GRASP)
+    
+    def get_pose(self, s):
         # Get grasp point in camera frame
-        grasp_point = self.spline(grasp_s) * MM_TO_M
+        point = self.spline(s) * MM_TO_M
 
         # Choose grasp pose aligned with thread and easy for PSM to grasp
         dspline = self.spline.derivative()
-        grasp_z = dspline(grasp_s)
+        z = dspline(s)
         
         pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
         pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
-        base2grasp = grasp_point - pos_base
+        base2point = point - pos_base
         
-        grasp_x = np.cross(base2grasp, grasp_z)
-        grasp_y = np.cross(grasp_z, grasp_x)
+        x = np.cross(base2point, z)
+        y = np.cross(z, x)
 
         # Represent as matrix
-        R_grasp_ori = np.eye(4)
-        R_grasp_ori[:3, 0] = grasp_x / np.linalg.norm(grasp_x)
-        R_grasp_ori[:3, 1] = grasp_y / np.linalg.norm(grasp_y)
-        R_grasp_ori[:3, 2] = grasp_z / np.linalg.norm(grasp_z)
-        # Offset on grasp y-axis to handle ree-to-tip distance
+        R = np.eye(4)
+        R[:3, 0] = x / np.linalg.norm(x)
+        R[:3, 1] = y / np.linalg.norm(y)
+        R[:3, 2] = z / np.linalg.norm(z)
+        # Offset on ree y-axis to handle ree-to-tip distance
         REE_TO_TIP = 0.0102 # Taken from dvrk manual
-        grasp_point -= R_grasp_ori[:3, 1] * REE_TO_TIP / 2 # grasp point is halfway to tip distance
+        point -= R[:3, 1] * REE_TO_TIP / 2 # target point is halfway to tip distance
         # Convert to PoseStamped
-        grasp_quat_cam = quaternion_from_matrix(R_grasp_ori)
-        grasp_pose = PoseStamped()
-        grasp_pose.header.stamp = self.stamp
-        grasp_pose.header.frame_id = "dvrk_cam"
-        grasp_pose.pose.position.x = grasp_point[0]
-        grasp_pose.pose.position.y = grasp_point[1]
-        grasp_pose.pose.position.z = grasp_point[2]
-        grasp_pose.pose.orientation.x = grasp_quat_cam[0]
-        grasp_pose.pose.orientation.y = grasp_quat_cam[1]
-        grasp_pose.pose.orientation.z = grasp_quat_cam[2]
-        grasp_pose.pose.orientation.w = grasp_quat_cam[3]
+        quat_cam = quaternion_from_matrix(R)
+        pose = PoseStamped()
+        pose.header.stamp = self.stamp
+        pose.header.frame_id = "dvrk_cam"
+        pose.pose.position.x = point[0]
+        pose.pose.position.y = point[1]
+        pose.pose.position.z = point[2]
+        pose.pose.orientation.x = quat_cam[0]
+        pose.pose.orientation.y = quat_cam[1]
+        pose.pose.orientation.z = quat_cam[2]
+        pose.pose.orientation.w = quat_cam[3]
 
-        # Approach from a distance
-        approach_len = 0.02
-        approach_point = grasp_point - R_grasp_ori[:3, 1] * approach_len
-        approach_pose = PoseStamped()
-        approach_pose.header.stamp = self.stamp
-        approach_pose.header.frame_id = "dvrk_cam"
-        approach_pose.pose.position.x = approach_point[0]
-        approach_pose.pose.position.y = approach_point[1]
-        approach_pose.pose.position.z = approach_point[2]
-        approach_pose.pose.orientation.x = grasp_quat_cam[0]
-        approach_pose.pose.orientation.y = grasp_quat_cam[1]
-        approach_pose.pose.orientation.z = grasp_quat_cam[2]
-        approach_pose.pose.orientation.w = grasp_quat_cam[3]
-        
-        # Send grasp point to grasp service
-        self.grasp_service(approach_pose, False)
-        self.grasp_service(grasp_pose, True)
-        self.grasp_service(approach_pose, False)
-    
+        return pose
+
     def trace(self, request):
         if self.spline == None:
-            rospy.logerr("thread_reconstr_node: No reconstruction found")
+            rospy.logwarn("thread_reconstr_node: No reconstruction found")
             return None
 
-        # Construct trace path
-        num_waypoints = 1 + (request.stop - request.start) / request.step
-        waypoint_s = request.start + np.arange(0, num_waypoints)*request.step
+        # Get grasp policy
+        if request.policy == SIMPLE:
+            grasp = self.simple_grasp
+        elif request.policy == ROBUST:
+            grasp = self.robust_grasp
+        else:
+            rospy.logwarn("thread_reconstr_node: Grasp policy not recognized")
 
-        # Initialize trace
-        self.grasp(waypoint_s[0])
+        # Construct trace path
+        num_waypoints = 1 + np.abs(request.stop-request.start) / request.step
+        direction = np.sign(request.stop-request.start)
+        waypoint_s = request.start + np.arange(0, num_waypoints)*request.step*direction
+
+        # Execute trace
         if request.record:
             self.record_service(True, 0.005)
 
-        # Execute trace
-        for s in waypoint_s[1:]:
-            self.grasp(s)
-        
-        # Shutdown trace
+        for s in waypoint_s:
+            grasp(s)
+
         if request.record:
             self.record_service(False, 0.005)
         return TraceThreadResponse()

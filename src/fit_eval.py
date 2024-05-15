@@ -63,7 +63,7 @@ def fit_eval(img1, img2, calib, segmenter, gt_tck=None):
     # Perform reconstruction
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
-    final_tck = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2)
+    final_tck, reliability = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2)
     final_tck.c = change_coords(final_tck.c, P1[:, :3])
     final_spline = final_tck(np.linspace(final_tck.t[0], final_tck.t[-1], 150))
     return

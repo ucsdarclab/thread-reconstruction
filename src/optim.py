@@ -145,7 +145,19 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
         plt.show()
 
         spline, keypt_u = new_spline, keypt_s
-    return spline
+    
+    # Assign reliability values w/ a gaussian
+    bounds = constr_upper_d-constr_lower_d
+    cutoff = 8
+    sigma = 5
+    clipped_bounds = np.clip(bounds, a_min=cutoff, a_max=None)
+    reliability_bounds = gaussian(clipped_bounds, cutoff, sigma)
+    keypt_s[0], keypt_s[-1] = 0.0, 1.0
+    print(bounds)
+    print(reliability_bounds)
+    reliability = interp.interp1d(keypt_s, reliability_bounds)
+    
+    return spline, reliability
     
 
 def augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order):

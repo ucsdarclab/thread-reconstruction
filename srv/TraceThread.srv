@@ -2,6 +2,7 @@
 float64 start
 float64 stop
 float64 step
+uint8 policy       # SIMPLE: 0, ROBUST: 1
 bool record
 ---
 # response

@@ -120,3 +120,8 @@ def reprojection_error(ours, mask, P, num_eval_pts):
         diffs = np.linalg.norm(pix - segpix, axis=1)
         errors[i] = np.min(diffs)
     return np.mean(errors), np.max(errors)
+
+def gaussian(x, mu, sig):
+    return (
+        1.0 / (np.sqrt(2.0 * np.pi) * sig) * np.exp(-np.power((x - mu) / sig, 2.0) / 2)
+    )
