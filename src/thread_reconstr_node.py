@@ -31,16 +31,20 @@ SIMPLE = 0
 ROBUST = 1
 
 MM_TO_M = 1/1000
-PSM = 2
+PSM = 1
+
+class GraspError(Exception):
+    def __init__(self, message="Grasp error has occurred"):
+        super().__init__(message)
 
 class ThreadReconstrNode:
     def __init__(self, grasp_service, record_service):
         # Save service proxies
-        self.grasp_service = grasp_service
+        self.grasp_service_handle = grasp_service
         self.record_service = record_service
         
         # Set up camera params
-        calib = os.path.dirname(__file__) + "/../../camera_calibration_sarah.yaml"
+        calib = os.path.dirname(__file__) + "/../../dvrk_camera_calibration_before_rectify.yaml"#"/../../camera_calibration_sarah.yaml"
         cv_file = cv2.FileStorage(calib, cv2.FILE_STORAGE_READ)
         K1 = cv_file.getNode("K1").mat()
         D1 = cv_file.getNode("D1").mat()
@@ -50,11 +54,15 @@ class ThreadReconstrNode:
         T = cv_file.getNode("T").mat()
         ImageSize = cv_file.getNode("ImageSize").mat()
         img_size = (int(ImageSize[0][1]), int(ImageSize[0][0]))
-        new_size = (640, 480)
+        new_size = img_size#(640, 480)
 
         R1, R2, self.P1, self.P2, self.Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
             flags=cv2.CALIB_ZERO_DISPARITY, newImageSize=new_size)
         
+        print(self.P1)
+        print(self.P2)
+        print(self.Q)
+
         self.cam2img = self.P1[:,:-1]
         self.map1x, self.map1y = cv2.initUndistortRectifyMap(K1, D1, R1, self.P1, new_size, cv2.CV_16SC2)
         self.map2x, self.map2y = cv2.initUndistortRectifyMap(K2, D2, R2, self.P2, new_size, cv2.CV_16SC2)
@@ -75,8 +83,8 @@ class ThreadReconstrNode:
         self.right = None
         self.stamp = None
         self.bridge = cv_bridge.CvBridge()
-        self.rectified_left_sub = message_filters.Subscriber("/stereo/left/rectified_downscaled_image", Image, queue_size=1)
-        self.rectified_right_sub = message_filters.Subscriber("/stereo/right/rectified_downscaled_image", Image, queue_size=1)
+        self.rectified_left_sub = message_filters.Subscriber("/stereo/left/image", Image, queue_size=1)
+        self.rectified_right_sub = message_filters.Subscriber("/stereo/right/image", Image, queue_size=1)
         self.sync_stereo = message_filters.ApproximateTimeSynchronizer([self.rectified_left_sub, self.rectified_right_sub], queue_size=1, slop=0.2)
         self.sync_stereo.registerCallback(self.get_stereo_pair)
 
@@ -147,6 +155,11 @@ class ThreadReconstrNode:
 
         return ReconstructResponse()
     
+    def grasp_service(self, pose, primitive):
+        response = self.grasp_service_handle(pose, primitive)
+        if response == None:
+            raise GraspError()
+
     def simple_grasp(self, grasp_s):
         self.grasp_service(self.get_pose(grasp_s), CAPTURE)
         self.grasp_service(self.get_pose(grasp_s), GRASP)
@@ -184,11 +197,11 @@ class ThreadReconstrNode:
         dspline = self.spline.derivative()
         z = dspline(s)
         
-        pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
-        pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
-        base2point = point - pos_base
+        # pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
+        # pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
+        # base2point = point - pos_base
         
-        x = np.cross(base2point, z)
+        x = np.cross(point, z)#np.cross(base2point, z)
         y = np.cross(z, x)
 
         # Represent as matrix
@@ -198,7 +211,7 @@ class ThreadReconstrNode:
         R[:3, 2] = z / np.linalg.norm(z)
         # Offset on ree y-axis to handle ree-to-tip distance
         REE_TO_TIP = 0.0102 # Taken from dvrk manual
-        point -= R[:3, 1] * REE_TO_TIP / 2 # target point is halfway to tip distance
+        point -= R[:3, 1] * REE_TO_TIP *1.5 # target point is halfway to tip distance
         # Convert to PoseStamped
         quat_cam = quaternion_from_matrix(R)
         pose = PoseStamped()
@@ -236,8 +249,11 @@ class ThreadReconstrNode:
         if request.record:
             self.record_service(True, 0.005)
 
-        for s in waypoint_s:
-            grasp(s)
+        try:
+            for s in waypoint_s:
+                grasp(s)
+        except GraspError as e:
+            rospy.logwarn("Trajectory failed")
 
         if request.record:
             self.record_service(False, 0.005)

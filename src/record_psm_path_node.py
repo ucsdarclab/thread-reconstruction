@@ -10,6 +10,8 @@ import numpy as np
 from read_dvrk_msg.ros_dvrk import ROSdVRK
 from psm_control import utils
 
+PSM = 1
+
 class RecordPSMPathNode:
     def __init__(self, ros_dvrk):
         self.ros_dvrk = ros_dvrk
@@ -58,7 +60,6 @@ class RecordPSMPathNode:
     def build_path(self, event):
         if self.recording:
             # Get current PSM position
-            PSM = 2
             ros_msg = self.ros_dvrk.getSyncMsg()
             current_pose_cam_base = ros_msg['pose_cam_base{}'.format(PSM)]
             current_pose_base_ree = ros_msg['pose_base_ee{}'.format(PSM)]

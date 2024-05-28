@@ -15,6 +15,8 @@ from tf.transformations import quaternion_matrix
 CAPTURE = 0
 GUIDE = 1
 GRASP = 2
+PSM = 1
+OTHER_PSM = 2 if PSM==1 else 1
 
 class ExecGraspNode:
     def __init__(self, psm_control):
@@ -22,7 +24,6 @@ class ExecGraspNode:
         self.grasp_sub = rospy.Subscriber("/thread_reconstr/grasp_pose", PoseStamped, self.execute_grasp, queue_size=1)
     
     def execute_grasp(self, request):
-        PSM = 2
         pose = request.graspPoint
         
         # Set up approach on capture
@@ -47,7 +48,9 @@ class ExecGraspNode:
             ])
 
             self.psm_control.openGripper(PSM)
-            self.psm_control.controlPoseReeInCam(PSM, approach_pose_cam_ree)
+            success = self.psm_control.controlPoseReeInCam(PSM, approach_pose_cam_ree, timeout=10.0)
+            if not success:
+                return None
 
         # Move to goal
         goal_pose_cam_ree = np.array([
@@ -59,7 +62,9 @@ class ExecGraspNode:
             pose.pose.position.y,
             pose.pose.position.z
         ])
-        self.psm_control.controlPoseReeInCam(PSM, goal_pose_cam_ree)
+        success = self.psm_control.controlPoseReeInCam(PSM, goal_pose_cam_ree, timeout=10.0)
+        if not success:
+            return None
 
         # Set final gripper state
         if request.primitive == CAPTURE:
@@ -73,10 +78,16 @@ class ExecGraspNode:
 
 
     def gripper_capture(self):
-        self.psm_control._setGripper(
-                self.psm_control.set_gripper2_pub, 
-                end_pos=20, 
-            )
+        if PSM == 1:
+            self.psm_control._setGripper(
+                    self.psm_control.set_gripper1_pub, 
+                    end_pos=20, 
+                )
+        elif PSM == 2:
+            self.psm_control._setGripper(
+                    self.psm_control.set_gripper2_pub, 
+                    end_pos=20, 
+                )
         time.sleep(1.)
 
 if __name__ == '__main__': 
@@ -85,6 +96,8 @@ if __name__ == '__main__':
         joints=True, 
     )
     psm_control = PsmControl(ros_dvrk)
+    time.sleep(2.0)
+    psm_control.closeGripper(OTHER_PSM, tight=True)
     node = ExecGraspNode(psm_control)
     service = rospy.Service('exec_grasp_node/grasp', Grasp, node.execute_grasp)
     rospy.spin()
