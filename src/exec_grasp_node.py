@@ -15,7 +15,7 @@ from tf.transformations import quaternion_matrix
 CAPTURE = 0
 GUIDE = 1
 GRASP = 2
-PSM = 1
+PSM = 2
 OTHER_PSM = 2 if PSM==1 else 1
 
 class ExecGraspNode:

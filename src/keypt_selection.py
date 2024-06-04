@@ -15,12 +15,12 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
     
     reliab = np.zeros(segpix1.shape[0])
     # TODO change with image size
-    max_disp = 80
-    rad = 2
+    max_disp = int(80 * img1.shape[1] / 640)
+    rad = int(2 * img1.shape[1] / 640)
     c_data = 5
     c_slope = 8
     c_shift = 0.8
-    ignore_rad = 2
+    ignore_rad = int(2 * img1.shape[1] / 640)
     disp_thresh = segpix1.shape[0]//400
     depth_calc = np.ones((4, segpix1.shape[0]))
     # Stereo match and get reliabilites

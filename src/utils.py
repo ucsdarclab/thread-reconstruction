@@ -5,6 +5,8 @@ import cv2
 import scipy.optimize
 import scipy.integrate
 
+import transforms3d
+
 def change_coords(pts, cam2img):
     pts[:, 0], pts[:, 1] = pts[:, 1].copy(), pts[:, 0].copy()
     depths = pts[:, 2:].copy()
@@ -125,3 +127,41 @@ def gaussian(x, mu, sig):
     return (
         1.0 / (np.sqrt(2.0 * np.pi) * sig) * np.exp(-np.power((x - mu) / sig, 2.0) / 2)
     )
+
+def get_camera2markers_pose(image, P1):
+    gray = cv2.cvtColor(image, cv2.COLOR_RGB2GRAY)
+    aruco_dict = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_250)
+    parameters =  cv2.aruco.DetectorParameters()
+    detector = cv2.aruco.ArucoDetector(aruco_dict, parameters)
+
+    corners, ids, rejectedImgPoints = detector.detectMarkers(gray)
+
+
+    cam_mtx = P1[0:3, 0:3]
+    dist = np.array([[0.0], [0.0], [0.0], [0.0], [0.0]])
+    marker_size = 0.0381
+    # import pdb; pdb.set_trace()
+
+    marker_points = np.array([[-marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, marker_size / 2, 0],
+                              [marker_size / 2, -marker_size / 2, 0],
+                              [-marker_size / 2, -marker_size / 2, 0]], dtype=np.float32)
+    print(ids)
+
+    if np.all(ids != None):
+        for i in range(ids.squeeze(0).shape[0]):
+            id = ids.squeeze(0)[i]
+            c = corners[i]
+            nada, R, t = cv2.solvePnP(marker_points, c, cam_mtx, dist, False, cv2.SOLVEPNP_IPPE_SQUARE)
+            t = t.squeeze()
+            R = R.squeeze()
+            rmat = cv2.Rodrigues(R)[0]
+
+            samples_1d = 3
+            offset_1d = np.linspace(-marker_size / 2, marker_size / 2, samples_1d)
+            tvec = []
+            for x in range(samples_1d):
+                for y in range(samples_1d):
+                    tvec.append(t + rmat[:, 0]*offset_1d[x] + rmat[:, 1]*offset_1d[y])
+
+            return tvec
