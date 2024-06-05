@@ -54,7 +54,7 @@ class ThreadReconstrNode:
         T = cv_file.getNode("T").mat()
         ImageSize = cv_file.getNode("ImageSize").mat()
         img_size = (int(ImageSize[0][1]), int(ImageSize[0][0]))
-        new_size = (640, 480)
+        new_size = (int(ImageSize[0][1]/2), int(ImageSize[0][0]/2))
 
         R1, R2, self.P1, self.P2, self.Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
             flags=cv2.CALIB_ZERO_DISPARITY, alpha=0, newImageSize=new_size)

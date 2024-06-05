@@ -32,8 +32,13 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
             chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
             seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
-            energy = np.zeros(curr_max_disp)
-            for off in range(curr_max_disp):
+            energy = np.ones(curr_max_disp) * 255**2 * seg.shape[0]
+            offsets = pix[1] - np.argwhere(np.sum(img2[pix[0]], axis=1) > 0).squeeze()
+            if i == 100:
+                print(offsets)
+            for off in offsets:
+                if off >= curr_max_disp or off <= 0:
+                    continue
                 g_l = img1[seg[:,0], seg[:,1]]
                 g_r = img2[seg[:,0], seg[:,1] - off]
                 # Compare blocks, heavily penalizing fully unsegmented right-image blocks
