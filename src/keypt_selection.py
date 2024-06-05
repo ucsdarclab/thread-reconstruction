@@ -33,7 +33,7 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
             seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
             energy = np.ones(curr_max_disp) * 255**2 * seg.shape[0]
-            offsets = pix[1] - np.argwhere(np.sum(img2[pix[0]], axis=1) > 0).squeeze()
+            offsets = pix[1] - np.argwhere(np.sum(img2[pix[0]], axis=1) > 0).squeeze(1)
             if i == 100:
                 print(offsets)
             for off in offsets:
