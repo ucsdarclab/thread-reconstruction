@@ -8,6 +8,7 @@ from tf.transformations import *
 from sensor_msgs.msg import Image
 from geometry_msgs.msg import PoseStamped, Point
 from visualization_msgs.msg import Marker
+from std_msgs.msg import ColorRGBA
 from thread_reconstruction.srv import \
     Reconstruct, ReconstructResponse, \
     TraceThread, TraceThreadResponse, \
@@ -123,7 +124,7 @@ class ThreadReconstrNode:
         img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
         self.spline, self.reliability = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
 
-        # Publish to rviz
+        # Publish spline to rviz
         spline_pts = self.spline(np.linspace(0, 1, 50)) * MM_TO_M
         marker = Marker()
         marker.header.frame_id = "dvrk_cam"
@@ -149,6 +150,41 @@ class ThreadReconstrNode:
             point = Point()
             point.x, point.y, point.z = pt[0], pt[1], pt[2]
             marker.points.append(point)
+        marker.lifetime = rospy.Duration(0)
+        marker.frame_locked = True
+        self.reconstr_pub.publish(marker)
+
+        # Add markers to denote curve sections
+        params = np.linspace(0, 1, 11)
+        spline_pts = self.spline(params) * MM_TO_M
+        marker = Marker()
+        marker.header.frame_id = "dvrk_cam"
+        marker.header.stamp = rospy.Time()
+        marker.ns = "thread_reconstr"
+        marker.id = 1
+        marker.type = Marker.SPHERE_LIST
+        marker.action = Marker.ADD
+        marker.pose.position.x = 0
+        marker.pose.position.y = 0
+        marker.pose.position.z = 0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.003 # Default 3 mm thickness
+        marker.points = []
+        marker.colors = []
+        for pt, s in zip(spline_pts, params):
+            point = Point()
+            point.x, point.y, point.z = pt[0], pt[1], pt[2]
+            marker.points.append(point)
+            color = ColorRGBA()
+            # reddish to blueish
+            color.a = 1.0
+            color.r = 1.0 - s
+            color.g = 0.1
+            color.b = s
+            marker.colors.append(color)
         marker.lifetime = rospy.Duration(0)
         marker.frame_locked = True
         self.reconstr_pub.publish(marker)
@@ -196,13 +232,20 @@ class ThreadReconstrNode:
         # Choose grasp pose aligned with thread and easy for PSM to grasp
         dspline = self.spline.derivative()
         z = dspline(s)
-        
-        # pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
-        # pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
-        # base2point = point - pos_base
-        
-        x = np.cross(point, z)#np.cross(base2point, z)
-        y = np.cross(z, x)
+
+        ANG_THRESH = 20
+        # Choose best y direction
+        angle2cam = np.arccos(np.abs(np.dot(point/np.linalg.norm(point), z/np.linalg.norm(z))))
+        # grasp from PSM direction if angle to camera is too small
+        if angle2cam < np.radians(ANG_THRESH):
+            pose_base = self.tf_buf.lookup_transform("dvrk_cam", "PSM%d_base" % (PSM,), rospy.Time(0))
+            pos_base = np.array([pose_base.transform.translation.x, pose_base.transform.translation.y, pose_base.transform.translation.z])
+            base2point = point - pos_base
+            x = np.cross(base2point, z)
+            y = np.cross(z, x)
+        else:
+            x = np.cross(point, z)
+            y = np.cross(z, x)
 
         # Represent as matrix
         R = np.eye(4)
