@@ -124,8 +124,15 @@ class ThreadReconstrNode:
         img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
         self.spline, self.reliability = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, self.cam2img, self.P1, self.P2)
 
+        self.publish_spline()
+
+        return ReconstructResponse()
+
+    def publish_spline(self):
         # Publish spline to rviz
-        spline_pts = self.spline(np.linspace(0, 1, 50)) * MM_TO_M
+        params = np.linspace(0, 1, 50)
+        spline_pts = self.spline(params) * MM_TO_M
+        pt_reliabs = self.reliability(params)
         marker = Marker()
         marker.header.frame_id = "dvrk_cam"
         marker.header.stamp = rospy.Time()
@@ -141,15 +148,19 @@ class ThreadReconstrNode:
         marker.pose.orientation.z = 0.0
         marker.pose.orientation.w = 1.0
         marker.scale.x = 0.001 # Default 1 mm thickness
-        marker.color.a = 1.0
-        marker.color.r = 0.0
-        marker.color.g = 1.0
-        marker.color.b = 0.0
         marker.points = []
-        for pt in spline_pts:
+        marker.colors = []
+        for pt, rel in zip(spline_pts, pt_reliabs):
             point = Point()
             point.x, point.y, point.z = pt[0], pt[1], pt[2]
             marker.points.append(point)
+            color = ColorRGBA()
+            # red-yellow-green color scale
+            color.a = 1.0
+            color.r = 1.0 - np.clip(2*rel - 1.0, 0.0, 1.0)
+            color.g = np.clip(2*rel, 0.0, 1.0)
+            color.b = 0.0
+            marker.colors.append(color)
         marker.lifetime = rospy.Duration(0)
         marker.frame_locked = True
         self.reconstr_pub.publish(marker)
@@ -179,17 +190,15 @@ class ThreadReconstrNode:
             point.x, point.y, point.z = pt[0], pt[1], pt[2]
             marker.points.append(point)
             color = ColorRGBA()
-            # reddish to blueish
+            # black to white
             color.a = 1.0
-            color.r = 1.0 - s
-            color.g = 0.1
+            color.r = s
+            color.g = s
             color.b = s
             marker.colors.append(color)
         marker.lifetime = rospy.Duration(0)
         marker.frame_locked = True
         self.reconstr_pub.publish(marker)
-
-        return ReconstructResponse()
     
     def grasp_service(self, pose, primitive):
         response = self.grasp_service_handle(pose, primitive)
@@ -271,6 +280,9 @@ class ThreadReconstrNode:
         return pose
 
     def trace(self, request):
+        # Republish spline, for data collection purposes
+        self.publish_spline()
+        
         if self.spline == None:
             rospy.logwarn("thread_reconstr_node: No reconstruction found")
             return None

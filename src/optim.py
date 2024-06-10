@@ -151,7 +151,7 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
     cutoff = 3
     sigma = 5
     clipped_bounds = np.clip(bounds, a_min=cutoff, a_max=None)
-    reliability_bounds = gaussian(clipped_bounds, cutoff, sigma)
+    reliability_bounds = gaussian(clipped_bounds, cutoff, sigma) / (gaussian(cutoff, cutoff, sigma) + 1e-3)
     keypt_s[0], keypt_s[-1] = 0.0, 1.0
     print(bounds)
     print(reliability_bounds)
