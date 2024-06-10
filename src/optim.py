@@ -148,7 +148,7 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
     
     # Assign reliability values w/ a gaussian
     bounds = constr_upper_d-constr_lower_d
-    cutoff = 8
+    cutoff = 3
     sigma = 5
     clipped_bounds = np.clip(bounds, a_min=cutoff, a_max=None)
     reliability_bounds = gaussian(clipped_bounds, cutoff, sigma)

@@ -233,7 +233,7 @@ class ThreadReconstrNode:
         dspline = self.spline.derivative()
         z = dspline(s)
 
-        ANG_THRESH = 20
+        ANG_THRESH = 30
         # Choose best y direction
         angle2cam = np.arccos(np.abs(np.dot(point/np.linalg.norm(point), z/np.linalg.norm(z))))
         # grasp from PSM direction if angle to camera is too small
