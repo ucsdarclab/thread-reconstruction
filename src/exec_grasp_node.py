@@ -34,7 +34,7 @@ class ExecGraspNode:
                 pose.pose.orientation.z,
                 pose.pose.orientation.w
             ])
-            approach_len = 0.02
+            approach_len = 0.015
             grasp_point = np.array([pose.pose.position.x, pose.pose.position.y, pose.pose.position.z])
             approach_point = grasp_point - R[:3, 1] * approach_len
             approach_pose_cam_ree = np.array([

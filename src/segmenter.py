@@ -2,7 +2,7 @@ import cv2
 import torch
 import numpy as np
 import os
-from segment_anything import sam_model_registry, SamPredictor
+from segment_anything_hq import sam_model_registry, SamPredictor
 
 class Segmenter:
     def __init__(self, device):
@@ -33,7 +33,7 @@ class SAMSegmenter(Segmenter):
         super().__init__(device)
     
         if model_type == "vit_h": 
-            sam_checkpoint = "/home/autosurg/thread_reconstr_ws/src/sam_vit_h_4b8939.pth"
+            sam_checkpoint = "/home/autosurg/thread_reconstr_ws/src/sam_hq_vit_h.pth"#"/home/autosurg/thread_reconstr_ws/src/sam_vit_h_4b8939.pth"
         elif model_type == "vit_l":
             sam_checkpoint = "/home/autosurg/thread_reconstr_ws/src/sam_vit_l_0b3195.pth"
 

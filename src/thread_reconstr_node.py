@@ -107,6 +107,17 @@ class ThreadReconstrNode:
         
         img1 = cv2.remap(self.left, self.map1x, self.map1y, cv2.INTER_LINEAR)
         img2 = cv2.remap(self.right, self.map2x, self.map2y, cv2.INTER_LINEAR)
+
+        # # Gamma correction
+        # gamma = 0.9
+        # img1 = np.uint8((img1/255) ** gamma * 255)
+        # img2 = np.uint8((img2/255) ** gamma * 255)
+
+        # # Contrast adjustment
+        # alpha = 2
+        # beta = -255/2
+        # img1[..., 2] = cv2.convertScaleAbs(img1[..., 2], alpha=alpha, beta=beta)
+        # img2[..., 2] = cv2.convertScaleAbs(img2[..., 2], alpha=alpha, beta=beta)
         
         mask1 = self.segmenter.segmentation(img1)
         mask2 = self.segmenter.segmentation(img2)
