@@ -11,7 +11,7 @@ class Segmenter:
     def segmentation(self, img):
         raise NotImplementedError
     
-
+# This is for a UNet I overfit to another dataset. Feel free to ignore
 class UNetSegmenter(Segmenter):
     def __init__(self, device):
         super().__init__(device)
@@ -27,7 +27,9 @@ class UNetSegmenter(Segmenter):
         mask = np.where(mask>=0.5, 1, 0)
         return mask
 
-
+# This is what you should use
+# device: either "cpu" or "cuda"
+# model_type: define size of SAM_HQ encoder, best is "vit_h"
 class SAMSegmenter(Segmenter):
     def __init__(self, device, model_type="vit_h"):
         super().__init__(device)
@@ -51,9 +53,9 @@ class SAMSegmenter(Segmenter):
         points = []
         labels = []
         masks = None
-        w_name = "Add (L-click) and Remove (R-click) Mask"
+        w_name = "Add (L-click) and Remove (R-click) Mask. Esc to Quit"
 
-        # select points, press any key to end selection
+        # Runs segmentation window
         def select_point(event, x, y, flags, param):
             nonlocal points, labels, masks
             if event == cv2.EVENT_LBUTTONDOWN or event == cv2.EVENT_RBUTTONDOWN: 
