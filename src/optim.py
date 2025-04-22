@@ -15,7 +15,6 @@ CONSTR_WIDTH_2D = 5
 
 def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2):
     # Get necessary values
-    # init_pts, keypoint_idxs = augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order)
     init_pts, keypoint_idxs = keypoints[order], np.arange(len(order))
     knots, init_u, constr_lower_d, constr_upper_d = optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img)
     keypt_u = init_u[keypoint_idxs]
@@ -112,37 +111,11 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
             init_guess = None
         else:
             new_spline, knots, keypt_s = reparam(spline, keypt_u)
-            
-            param_change = np.abs(np.array(keypt_s) - np.array(keypt_u))
-            print(np.mean(param_change), np.std(param_change))
-
             init_guess = new_spline.c.flatten()
         
         qp_out = QP_step(init_guess, knots, keypt_s)
         new_ctrl = qp_out.reshape(num_ctrl, 3)
         new_spline = interp.BSpline(knots, new_ctrl, k)
-
-        # old_samples = spline(np.linspace(0, keypt_u[-1], 150))
-        new_samples = new_spline(np.linspace(0, knots[-1], 150))
-
-        num_eval_pts = 200
-        left, left_max = reprojection_error(new_spline, mask1, P1, num_eval_pts)
-        right, right_max = reprojection_error(new_spline, mask2, P2, num_eval_pts)
-        # print("Reprojection error: mean left %f, max left %f, mean right %f, max right %f" \
-        #     % (left, left_max, right, right_max))
-
-        # plt.imshow(img1, cmap="gray")
-        ax = plt.subplot(projection="3d")
-        # ax.plot(old_samples[:, 0], old_samples[:, 1], old_samples[:, 2])
-        ax.plot(new_samples[:, 0], new_samples[:, 1], new_samples[:, 2])
-        ax.scatter(new_ctrl[..., 0], new_ctrl[..., 1], new_ctrl[..., 2])
-        ax.plot(new_spline(keypt_s)[:, 0], new_spline(keypt_s)[:, 1], constr_lower_d, c="turquoise")
-        ax.plot(new_spline(keypt_s)[:, 0], new_spline(keypt_s)[:, 1], constr_upper_d, c="turquoise")
-        # ax.scatter(init_pts[:, 0], init_pts[:, 1], init_pts[:, 2],\
-        #         c=init_s, cmap="hot")
-        # plt.axis("equal")
-        set_axes_equal(ax)
-        plt.show()
 
         spline, keypt_u = new_spline, keypt_s
     
@@ -153,87 +126,9 @@ def optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1,
     clipped_bounds = np.clip(bounds, a_min=cutoff, a_max=None)
     reliability_bounds = gaussian(clipped_bounds, cutoff, sigma) / (gaussian(cutoff, cutoff, sigma) + 1e-3)
     keypt_s[0], keypt_s[-1] = 0.0, 1.0
-    print(bounds)
-    print(reliability_bounds)
     reliability = interp.interp1d(keypt_s, reliability_bounds)
     
     return spline, reliability
-    
-
-def augment_keypoints(img1, segpix1, img_3D, keypoints, grow_paths, order):
-    # Gather more points between keypoints to get better data for curve initialization
-    init_pts = []
-    size_thresh = segpix1.shape[0] // 100
-    ang_thresh = np.pi/5
-    interval_floor = size_thresh // 2
-    keypoint_idxs = []
-    for key_ord, key_id in enumerate(order[:-1]):
-        # Find segmented points between keypoints
-        keypoint_idxs.append(len(init_pts))
-        init_pts.append(keypoints[key_id])
-        curr_growth = grow_paths[key_id]
-        next_id = order[key_ord+1]
-        next_growth = grow_paths[next_id]
-        btwn_pts = curr_growth.intersection(next_growth)
-
-        # gather extra points if keypoint distance is large
-        if len(btwn_pts) > size_thresh:
-            btwn_pts = np.array(list(btwn_pts))
-            btwn_depths = img_3D[btwn_pts[:, 0], btwn_pts[:, 1], 2]
-            num_samples = btwn_pts.shape[0] // size_thresh
-            # remove outliers
-            quartiles = np.percentile(btwn_depths, [25, 75])
-            iqr = quartiles[1] - quartiles[0]
-            low_clip = quartiles[0]-1.5*iqr < btwn_depths
-            up_clip = btwn_depths < quartiles[1]+1.5*iqr
-            mask = np.logical_and(low_clip, up_clip)
-            mask_idxs = np.squeeze(np.argwhere(mask))
-            if mask_idxs.shape[0] < num_samples:
-                continue
-            filtered_pix = btwn_pts[mask_idxs]
-            filtered_depths = btwn_depths[mask_idxs]
-            filtered_pts = np.concatenate((filtered_pix, np.expand_dims(filtered_depths, 1)), axis=1)
-            
-            # project filtered points onto 2D line between keypoints
-            p1 = keypoints[key_id, :2]
-            p2 = keypoints[next_id, :2]
-            p1p2 = p2 - p1
-            p1pt = filtered_pix - np.expand_dims(p1, 0)
-            p2pt = filtered_pix - np.expand_dims(p2, 0)
-            proj1 = np.dot(p1pt, p1p2) / np.linalg.norm(p1p2)
-            proj2 = np.dot(p2pt, -1*p1p2) / np.linalg.norm(p1p2)
-
-            # Use angle to prune away more points
-            ang1 = np.arccos(proj1 / (np.linalg.norm(p1pt, axis=1)+1e-7))
-            ang2 = np.arccos(proj2 / (np.linalg.norm(p2pt, axis=1)+1e-7))
-            mask1 = ang1 < ang_thresh
-            mask2 = ang2 < ang_thresh
-            mask = np.logical_and(mask1, mask2)
-            mask_idxs = np.atleast_1d(np.squeeze(np.argwhere(mask)))
-            if mask_idxs.shape[0] < num_samples:
-                continue
-            filtered_pix = filtered_pix[mask_idxs]
-            filtered_depths = filtered_depths[mask_idxs]
-            filtered_pts = filtered_pts[mask_idxs]
-            proj = proj1[mask_idxs]
-
-            # Choose evenly spaced points, based on projections
-            pt2ord = np.argsort(proj)
-            floor = interval_floor if interval_floor<np.max(proj) else max(np.min(proj), 0)
-            intervals = np.linspace(interval_floor, np.max(proj), num_samples)
-            int_idx = 0
-            for pt_idx in pt2ord:
-                if int_idx >= num_samples or \
-                    (filtered_pix[pt_idx] == keypoints[next_id, :2]).all():
-                    break
-                if proj[pt_idx] >= intervals[int_idx]:
-                    init_pts.append(filtered_pts[pt_idx])
-                    int_idx += 1
-    keypoint_idxs.append(len(init_pts))
-    init_pts.append(keypoints[order[-1]])
-    init_pts = np.array(init_pts)
-
-    return init_pts, keypoint_idxs
 
 def optim_init(init_pts, keypoints, keypoint_idxs, order, cam2img):
     # Construct bounds

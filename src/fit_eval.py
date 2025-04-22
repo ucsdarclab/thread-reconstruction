@@ -56,32 +56,4 @@ def fit_eval(img1, img2, calib, segmenter):
     img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents = keypt_selection(img1, img2, mask1, mask2, Q)
     img_3D, keypoints, grow_paths, order = keypt_ordering(img1, img_3D, clusters, cluster_map, keypoints, grow_paths, adjacents)
     spline, reliability = optim(img1, mask1, mask2, img_3D, keypoints, grow_paths, order, cam2img, P1, P2)
-    return spline
-
-if __name__ == "__main__":
-    USE_SAM = True
-
-    inp_folder = os.path.dirname(__file__) + "/../../thread_2/"
-    prefixes = ["left_recif_", "right_recif_"]
-    start = 0
-    ext = ".jpg"
-    calib = os.path.dirname(__file__) + "/../../camera_calibration_sarah.yaml"
-    if USE_SAM:
-        device = "cpu"
-        model_type = "vit_h"
-        segmenter = SAMSegmenter(device, model_type)
-    else:
-        device = "cuda" if torch.cuda.is_available() else "cpu"
-        segmenter = UNetSegmenter(device)
-    for i in range(10, 98, 10): #end at 279
-        print(start+i)
-        imfile1 = inp_folder+prefixes[0]+str(start+i)+ext
-        img1 = cv2.imread(imfile1)
-        img1 = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
-        imfile2 = inp_folder+prefixes[1]+str(start+i)+ext
-        img2 = cv2.imread(imfile2)
-        img2 = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
-        try:
-            fit_eval(img1, img2, calib, segmenter)
-        except Exception as e:
-            print("FAILED: " + str(e))
+    return spline, reliability

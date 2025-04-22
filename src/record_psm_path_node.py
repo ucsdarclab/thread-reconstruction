@@ -1,5 +1,9 @@
 #! /home/autosurg/anaconda3/envs/thread_ros/bin/python
 
+"""
+Useful for visualizing PSM tool movement in RViz
+"""
+
 import rospy
 from geometry_msgs.msg import Point
 from visualization_msgs.msg import Marker
@@ -7,6 +11,10 @@ from thread_reconstruction.srv import RecordPSMPath, RecordPSMPathResponse
 
 import numpy as np
 
+"""
+NOTE: These libraries are not publicly available, so
+replace them with your own libraries
+"""
 from read_dvrk_msg.ros_dvrk import ROSdVRK
 from psm_control import utils
 

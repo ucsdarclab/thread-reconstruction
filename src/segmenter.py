@@ -11,7 +11,7 @@ class Segmenter:
     def segmentation(self, img):
         raise NotImplementedError
     
-# This is for a UNet I overfit to another dataset. Feel free to ignore
+# For use with UNet
 class UNetSegmenter(Segmenter):
     def __init__(self, device):
         super().__init__(device)

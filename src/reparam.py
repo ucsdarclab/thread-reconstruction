@@ -91,53 +91,5 @@ def reparam(spline, keypt_u):
     k = tck[2]
     new_spline = interp.BSpline(t, c, k)
 
-    # old_samples = spline(np.linspace(0, knots[-1], 150))
-    # new_samples = new_spline(np.linspace(0, init_s[-1], 150))
-
-    # # plt.imshow(img1, cmap="gray")
-    # ax = plt.subplot(projection="3d")
-    # ax.plot(old_samples[:, 0], old_samples[:, 1], old_samples[:, 2])
-    # ax.plot(new_samples[:, 0], new_samples[:, 1], new_samples[:, 2])
-    # ax.scatter(init_pts[:, 0], init_pts[:, 1], init_pts[:, 2],\
-    #         c=init_s, cmap="hot")
-    # # plt.axis("equal")
-    # set_axes_equal(ax)
-    # plt.show()
-    # validate_reparam(new_spline)
-
 
     return new_spline, knots, keypt_s
-
-def validate_reparam(spline):
-    # Integrate curve speed to get segment lengths
-    knots, ctrl, k = spline.t, spline.c, spline.k
-    segment_l = []
-    dspline = spline.derivative()
-    samples = np.linspace(knots[0], knots[-1], 150)
-
-    for a, b in zip(samples[:-1], samples[1:]):
-        li = arclength(dspline, a, b)
-        segment_l.append(li)
-    
-    # Visualize segments, they should have similar length
-    plt.scatter(samples[:-1], segment_l)
-    plt.show()
-
-
-
-if __name__ == "__main__":
-    t = np.linspace(-1, 3)
-    num_ctrl = 15
-    k = 3
-    knots = np.linspace(0, 1, num_ctrl+k+1)
-    x1 = np.sin(t)
-    x2 = np.cos(t)
-    x = np.stack((x1, x2))
-    tck, *_ = interp.splprep(x, task=-1, t=knots, k=k)
-    t = tck[0]
-    c = np.array(tck[1]).T
-    k = tck[2]
-    tck = interp.BSpline(t, c, k)
-    # validate_reparam(tck)
-    new_spline = reparam(tck)
-    validate_reparam(new_spline)

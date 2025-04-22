@@ -7,10 +7,14 @@ from thread_reconstruction.srv import Grasp, GraspResponse
 import numpy as np
 import time
 
+from tf.transformations import quaternion_matrix
+
+"""
+NOTE: These libraries are not publicly available, so
+replace them with your own libraries
+"""
 from read_dvrk_msg.ros_dvrk import ROSdVRK
 from psm_control.psm_control import PsmControl
-
-from tf.transformations import quaternion_matrix
 
 CAPTURE = 0
 GUIDE = 1

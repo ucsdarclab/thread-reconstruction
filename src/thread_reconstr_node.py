@@ -59,10 +59,6 @@ class ThreadReconstrNode:
 
         R1, R2, self.P1, self.P2, self.Q, roi1, roi2 = cv2.stereoRectify(K1, D1, K2, D2, img_size, R, T,
             flags=cv2.CALIB_ZERO_DISPARITY, alpha=0, newImageSize=new_size)
-        
-        print(self.P1)
-        print(self.P2)
-        print(self.Q)
 
         self.cam2img = self.P1[:,:-1]
         self.map1x, self.map1y = cv2.initUndistortRectifyMap(K1, D1, R1, self.P1, new_size, cv2.CV_16SC2)
@@ -107,17 +103,6 @@ class ThreadReconstrNode:
         
         img1 = cv2.remap(self.left, self.map1x, self.map1y, cv2.INTER_LINEAR)
         img2 = cv2.remap(self.right, self.map2x, self.map2y, cv2.INTER_LINEAR)
-
-        # # Gamma correction
-        # gamma = 0.9
-        # img1 = np.uint8((img1/255) ** gamma * 255)
-        # img2 = np.uint8((img2/255) ** gamma * 255)
-
-        # # Contrast adjustment
-        # alpha = 2
-        # beta = -255/2
-        # img1[..., 2] = cv2.convertScaleAbs(img1[..., 2], alpha=alpha, beta=beta)
-        # img2[..., 2] = cv2.convertScaleAbs(img2[..., 2], alpha=alpha, beta=beta)
         
         mask1 = self.segmenter.segmentation(img1)
         mask2 = self.segmenter.segmentation(img2)
@@ -340,49 +325,5 @@ if __name__ == "__main__":
     node = ThreadReconstrNode(grasp_service, record_service)
     reconstr_service = rospy.Service('thread_reconstr_node/reconstruct', Reconstruct, node.reconstruct)
     trace_service = rospy.Service('thread_reconstr_node/trace', TraceThread, node.trace)
-
-
-    # import time
-    # time.sleep(2.0)
-
-    # plt.figure(0)
-    # plt.imshow(cv2.remap(node.left, node.map1x, node.map1y, cv2.INTER_LINEAR))
-    # plt.show()
-    # points = get_camera2markers_pose(cv2.remap(node.left, node.map1x, node.map1y, cv2.INTER_LINEAR), node.P1)
-    
-    # for point in points:
-
-    #     z = np.array([0, 1, 0])
-        
-    #     x = np.cross(point, z)#np.cross(base2point, z)
-    #     y = np.cross(z, x)
-
-    #     # Represent as matrix
-    #     R = np.eye(4)
-    #     R[:3, 0] = x / np.linalg.norm(x)
-    #     R[:3, 1] = y / np.linalg.norm(y)
-    #     R[:3, 2] = z / np.linalg.norm(z)
-    #     # Offset on ree y-axis to handle ree-to-tip distance
-    #     REE_TO_TIP = 0.0102 # Taken from dvrk manual
-    #     point -= R[:3, 1] * REE_TO_TIP # target point is halfway to tip distance
-
-    #     # offset = 0.01
-    #     # point[2] += offset
-
-    #     # Convert to PoseStamped
-    #     quat_cam = quaternion_from_matrix(R)
-    #     pose = PoseStamped()
-    #     pose.header.stamp = node.stamp
-    #     pose.header.frame_id = "dvrk_cam"
-    #     pose.pose.position.x = point[0]
-    #     pose.pose.position.y = point[1]
-    #     pose.pose.position.z = point[2]
-    #     pose.pose.orientation.x = quat_cam[0]
-    #     pose.pose.orientation.y = quat_cam[1]
-    #     pose.pose.orientation.z = quat_cam[2]
-    #     pose.pose.orientation.w = quat_cam[3]
-
-    #     node.grasp_service(pose, CAPTURE)
-    #     node.grasp_service(pose, GRASP)
 
     rospy.spin()

@@ -14,7 +14,6 @@ def keypt_selection(img1, img2, mask1, mask2, Q):
     img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
     
     reliab = np.zeros(segpix1.shape[0])
-    # TODO change with image size
     max_disp = int(80 * img1.shape[1] / 640)
     rad = int(2 * img1.shape[1] / 640)
     c_data = 5
