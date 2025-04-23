@@ -1,7 +1,3 @@
-"""
-Select keypoints via reliability metrics and clustering
-"""
-
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib import collections
@@ -11,52 +7,63 @@ import cv2
 import copy
 
 
-def keypt_selection(img1, img2, Q):
-    # Color segment images
-    pix_thresh = 250
-    segpix1 = np.argwhere(img1<=pix_thresh)
-    segpix2 = np.argwhere(img2<=pix_thresh)
+def keypt_selection(img1, img2, mask1, mask2, Q):
+    # Get segmented pixels
+    segpix1 = np.argwhere(mask1>0)
+    segpix2 = np.argwhere(mask2>0)
     img_3D = np.zeros((img1.shape[0], img1.shape[1], 3))
     
     reliab = np.zeros(segpix1.shape[0])
-    max_disp = 80
-    rad = 2
+    max_disp = int(80 * img1.shape[1] / 640)
+    rad = int(2 * img1.shape[1] / 640)
     c_data = 5
     c_slope = 8
     c_shift = 0.8
-    ignore_rad = 2
+    ignore_rad = int(2 * img1.shape[1] / 640)
     disp_thresh = segpix1.shape[0]//400
     depth_calc = np.ones((4, segpix1.shape[0]))
     # Stereo match and get reliabilites
     for i in range(segpix1.shape[0]):
         pix = segpix1[i]
-        curr_max_disp = min(pix[1], max_disp)
-        chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
-        seg = np.argwhere(chunk<=pix_thresh) + np.expand_dims(segpix1[i], 0) - rad
 
-        energy = np.zeros(curr_max_disp)
-        for off in range(curr_max_disp):
-            g_l = img1[seg[:,0], seg[:,1]]
-            g_r = img2[seg[:,0], seg[:,1] - off]
-            # Compare blocks, heavily penalizing fully unsegmented right-image blocks
-            if (np.abs(g_r - 255) < 1).all():
-                energy[off] = 255**2 * g_r.shape[0]
-            else:
-                energy[off] = np.sum((g_l - g_r)**2)
-        
-        best = np.min(energy)
-        disp = np.argmin(energy)
-        energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
-        next_best = np.min(energy2)
-        # disp2 = np.argmin(energy2)
-        
-        x = (next_best - best)/((best + 1e-7)*c_data)
-        reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
+        try:
+            curr_max_disp = min(pix[1], max_disp)
+            chunk = img1[pix[0]-rad:pix[0]+rad+1, pix[1]-rad:pix[1]+rad+1]
+            seg = np.argwhere(np.sum(chunk, axis=-1)>0) + np.expand_dims(segpix1[i], 0) - rad
 
-        depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+            energy = np.ones(curr_max_disp) * 255**2 * seg.shape[0]
+            offsets = pix[1] - np.argwhere(np.sum(img2[pix[0]], axis=1) > 0).squeeze(1)
+            if i == 100:
+                print(offsets)
+            for off in offsets:
+                if off >= curr_max_disp or off <= 0:
+                    continue
+                g_l = img1[seg[:,0], seg[:,1]]
+                g_r = img2[seg[:,0], seg[:,1] - off]
+                # Compare blocks, heavily penalizing fully unsegmented right-image blocks
+                if (g_r < 1).all():
+                    energy[off] = 255**2 * g_r.shape[0]
+                else:
+                    energy[off] = np.sum((g_l - g_r)**2)
+            
+            best = np.min(energy)
+            disp = np.argmin(energy)
+            energy2 = np.delete(energy, slice(disp-ignore_rad, disp+ignore_rad+1))
+            next_best = np.min(energy2)
+            disp2 = np.argmin(energy2)
+            
+            x = (next_best - best)/((best + 1e-7)*c_data)
+            reliab[i] = 1/(1+np.exp(np.clip(-1*c_slope*(x-c_shift), -87, None)))
+
+            depth_calc[:, i] = np.array([pix[0], pix[1], disp, 1])
+        # invalidate pixels near left image left edge
+        except ValueError:
+            reliab[i] = 0
+            depth_calc[:, i] = np.array([pix[0], pix[1], 0, 1])
+    
     # Reproject to 3D
     depth_calc = np.matmul(Q, depth_calc.copy())
-    depth_calc /= depth_calc[3].copy() + 1e-7
+    depth_calc /= np.clip(depth_calc[3].copy(), a_min=1e-7, a_max=None)
     img_3D[segpix1[:, 0], segpix1[:, 1], 2] = depth_calc[2]
     
     # prune unreliable points
@@ -67,7 +74,7 @@ def keypt_selection(img1, img2, Q):
     #Find Clusters
     clusters = []
     vlist = [pt for pt in relpts.copy()]
-    vmap = np.ones_like(img1)
+    vmap = np.ones_like(mask1)
     vmap[relpts[:, 0], relpts[:, 1]] = 0
     escape = False
     # Neighbors are all pixels of manhattan distance at most 2
@@ -114,7 +121,7 @@ def keypt_selection(img1, img2, Q):
 
     # Extract keypoints, create cluster map
     cluster_means = np.zeros((len(clusters), 3))
-    cluster_map = np.zeros_like(img1)
+    cluster_map = np.zeros_like(mask1)
     for i, cluster in enumerate(clusters):
         cluster = np.array(cluster)
         cluster_means[i, :2] = np.mean(cluster, axis=0)
@@ -152,7 +159,7 @@ def keypt_selection(img1, img2, Q):
                 t_neigh = tuple(neigh)
                 neigh_clust = solid_map[t_neigh]
                 # if neighbor is segmented, unvisited, and outside cluster
-                if img1[neigh[0], neigh[1]] <= pix_thresh and \
+                if mask1[neigh[0], neigh[1]] > 0 and \
                     t_neigh not in grow_paths[c_id] and \
                     neigh_clust != c_id+1:
                     # note down when adjacent keypoints are found

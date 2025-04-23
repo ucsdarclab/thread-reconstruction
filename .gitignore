@@ -1,6 +1,7 @@
 .vscode/launch.json
 src/__pycache__
 src/Bo_Lu/__pycache__
+src/SAM/__pycache__
 results.xlsx
 results_real.xlsx
 spline174.npy
@@ -8,3 +9,5 @@ spline174.npy
 spline209.npy
 *.npy
 *.mp4
+segmenter.pt
+paper
