@@ -1,0 +1,28 @@
+<package format="2">
+  <name>thread_reconstruction</name>
+  <version>0.1.0</version>
+  <description>
+    This package reconstructs suture thread.
+  </description>
+  <maintainer email="njogleka@ucsd.edu">Neelay Joglekar</maintainer>
+  <license>TODO</license>
+
+  <url>TODO</url>
+  <author>Neelay Joglekar</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+
+  <depend>std_msgs</depend>
+  <depend>sensor_msgs</depend>
+  <depend>geometry_msgs</depend>
+  <depend>visualization_msgs</depend>
+  <depend>actionlib</depend>
+  <depend>actionlib_msgs</depend>
+
+  <build_depend>message_generation</build_depend>
+
+  <exec_depend>message_runtime</exec_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>message_filters</exec_depend>
+  <exec_depend>cv_bridge</exec_depend>
+</package>
